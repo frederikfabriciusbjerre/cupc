@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "gpuerrors.h"
-#include "cuPC-S.h"
+#include "cuPC-S-MI.h"
 //#include "pt.cuh"
 
 //========================> Main Function Parameter <========================

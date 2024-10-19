@@ -43,11 +43,11 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
     HANDLE_ERROR( cudaMalloc((void**)&nprime_cuda,     1 * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * ML * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&GPrime_cuda,     n * n * sizeof(int)) );
-    HANDLE_ERROR( cudaMalloc((void**)&C_cuda,     n * n * sizeof(double)) );
+    HANDLE_ERROR( cudaMalloc((void**)&C_cuda,     n * n * M * sizeof(double)) );
     HANDLE_ERROR( cudaMalloc((void**)&G_cuda,     n * n * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&pMax_cuda,  n * n * sizeof(double)) );
     //copy correlation matrix from CPU to GPU
-    HANDLE_ERROR( cudaMemcpy(C_cuda, C,       n * n * sizeof(double), cudaMemcpyHostToDevice) );
+    HANDLE_ERROR( cudaMemcpy(C_cuda, C,       n * n * M * sizeof(double), cudaMemcpyHostToDevice) );
     //initialize a 0 matrix 
     HANDLE_ERROR( cudaMemset(mutex_cuda, 0, n * n * sizeof(int)) );
     CudaCheckError();

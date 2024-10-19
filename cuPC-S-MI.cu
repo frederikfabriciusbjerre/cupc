@@ -63,7 +63,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
             else {
                 BLOCKS_PER_GRID   = dim3(ceil( ( (double) (n)) / 32.0), ceil( ( (double) (n)) / 32.0), 1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n, M);
                 CudaCheckError();
             }
             BLOCKS_PER_GRID = dim3(n * n, 1, 1);

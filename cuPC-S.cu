@@ -4,6 +4,7 @@
 
 #include "gpuerrors.h"
 #include "cuPC-S.h"
+#include "pt.cuh"
 
 //========================> Main Function Parameter <========================
 //Description : this function just calculate one Stage of PC stable algorithm
@@ -19,7 +20,7 @@
 //============================================================================
 
 
-void Skeleton(double* C, int *P, int *G, double *Th, int *l, int *maxlevel, double *pMax, int* SepSet)
+void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxlevel, double *pMax, int* SepSet)
 {
     double *C_cuda;         //Copy of C array in GPU
     double *pMax_cuda;
@@ -30,6 +31,7 @@ void Skeleton(double* C, int *P, int *G, double *Th, int *l, int *maxlevel, doub
     int    *mutex_cuda;
 
     int    n = *P;
+    int    M = *m;
 	int    nprime = 0;
     dim3   BLOCKS_PER_GRID;
     dim3   THREADS_PER_BLOCK;
@@ -41,11 +43,11 @@ void Skeleton(double* C, int *P, int *G, double *Th, int *l, int *maxlevel, doub
     HANDLE_ERROR( cudaMalloc((void**)&nprime_cuda,     1 * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * ML * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&GPrime_cuda,     n * n * sizeof(int)) );
-    HANDLE_ERROR( cudaMalloc((void**)&C_cuda,     n * n * sizeof(double)) );
+    HANDLE_ERROR( cudaMalloc((void**)&C_cuda,     n * n * M * sizeof(double)) );
     HANDLE_ERROR( cudaMalloc((void**)&G_cuda,     n * n * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&pMax_cuda,  n * n * sizeof(double)) );
     //copy correlation matrix from CPU to GPU
-    HANDLE_ERROR( cudaMemcpy(C_cuda, C,       n * n * sizeof(double), cudaMemcpyHostToDevice) );
+    HANDLE_ERROR( cudaMemcpy(C_cuda, C,       n * n * M * sizeof(double), cudaMemcpyHostToDevice) );
     //initialize a 0 matrix 
     HANDLE_ERROR( cudaMemset(mutex_cuda, 0, n * n * sizeof(int)) );
     CudaCheckError();
@@ -55,13 +57,13 @@ void Skeleton(double* C, int *P, int *G, double *Th, int *l, int *maxlevel, doub
             if ( (n * n) < 1024) {
                 BLOCKS_PER_GRID   = dim3( 1, 1 ,1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n, M);
                 CudaCheckError();
             }
             else {
                 BLOCKS_PER_GRID   = dim3(ceil( ( (double) (n)) / 32.0), ceil( ( (double) (n)) / 32.0), 1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n, M);
                 CudaCheckError();
             }
             BLOCKS_PER_GRID = dim3(n * n, 1, 1);
@@ -220,28 +222,80 @@ __global__ void SepSet_initialize(int *SepSet, int size){
     SepSet[row * ML + tx] = -1;
 }
 
-__global__ void cal_Indepl0(double *C, int *G, double th, double *pMax, int n)
+__global__ void cal_Indepl0(
+    double *C,    // Pointer to concatenated C matrices (size n * n * M)
+    int *G,
+    double alpha, // Significance level (e.g., 0.01)
+    double *pMax,
+    int n,
+    int M         // Number of imputations
+)
 {
-    int row = blockDim.x * bx + tx;
-    int col = blockDim.y * by + ty;
-    if(row < col && col < n){
-        double res = C[row * n + col];
-        res = abs( 0.5 * log( abs ( (1 + res) / (1 - res) ) ) );
-        if (res < th){
-            pMax[row * n + col] = res;
+    int row = blockDim.x * blockIdx.x + threadIdx.x;
+    int col = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (row < col && col < n && row < n) {
+        double z_m[M]; // Array to store z-values for each imputation
+        double z_sum = 0.0;
+
+        // Loop over all M imputations
+        for (int m = 0; m < M; m++) {
+            // Compute the index into the 1D C array
+            int C_index = row * n * M + col * M + m;
+            // Compute the correlation coefficient for this imputation
+            double res_m = C[C_index];
+
+            // Compute Fisher's Z-transformation
+            res_m = fabs(0.5 * log(fabs((1.0 + res_m) / (1.0 - res_m))));
+            z_m[m] = res_m;
+            z_sum += res_m;
+        }
+
+        // Compute average z-value across imputations
+        double avgz = z_sum / M;
+
+        // Compute within-imputation variance W
+        double W = 1.0 / (n - 3);
+
+        // Compute between-imputation variance B
+        double B_sum = 0.0;
+        for (int m = 0; m < M; m++) {
+            double diff = z_m[m] - avgz;
+            B_sum += diff * diff;
+        }
+        double B = B_sum / (M - 1);
+
+        // Compute total variance TV
+        double TV = W + (1.0 + 1.0 / M) * B;
+
+        // Compute test statistic ts
+        double ts = avgz / sqrt(TV);
+
+        // Compute degrees of freedom df
+        double tmp = (W / B) * (M / (M + 1.0));
+        double df = (M - 1) * (1.0 + tmp) * (1.0 + tmp);
+
+        // Compute p-value using the cumulative t-distribution function
+        double p_val = 2.0 * pt(fabs(ts), df); 
+
+        // Compare p-value with alpha and update G accordingly
+        if (p_val < alpha) {
+            pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
-        }
-        else {
+        } else {
             G[row * n + col] = 1;
             G[col * n + row] = 1;
         }
     }
-    if (row == col && col < n){
+
+    // Ensure the diagonal elements are set to 0
+    if (row == col && row < n) {
         G[row * n + col] = 0;
         G[col * n + row] = 0;
     }
 }
+
 
 __global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double th, int n)
 {

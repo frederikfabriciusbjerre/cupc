@@ -222,75 +222,26 @@ __global__ void SepSet_initialize(int *SepSet, int size){
     SepSet[row * ML + tx] = -1;
 }
 
-__global__ void cal_Indepl0(
-    double *C,    // Pointer to concatenated C matrices (size n * n * M)
-    int *G,
-    double alpha, // Significance level (e.g., 0.01)
-    double *pMax,
-    int n,
-    int M         // Number of imputations
-)
+__global__ void cal_Indepl0(double *C, int *G, double th, double *pMax, int n)
 {
-    int row = blockDim.x * blockIdx.x + threadIdx.x;
-    int col = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (row < col && col < n && row < n) {
-        double z_m[M]; // Array to store z-values for each imputation
+    int row = blockDim.x * bx + tx;
+    int col = blockDim.y * by + ty;
+    if(row < col && col < n){
+        double z_m[MAX_M]; // MAX_M set to 100 atm
         double z_sum = 0.0;
-
-        // Loop over all M imputations
-        for (int m = 0; m < M; m++) {
-            // Compute the index into the 1D C array
-            int C_index = row * n * M + col * M + m;
-            // Compute the correlation coefficient for this imputation
-            double res_m = C[C_index];
-
-            // Compute Fisher's Z-transformation
-            res_m = fabs(0.5 * log(fabs((1.0 + res_m) / (1.0 - res_m))));
-            z_m[m] = res_m;
-            z_sum += res_m;
-        }
-
-        // Compute average z-value across imputations
-        double avgz = z_sum / M;
-
-        // Compute within-imputation variance W
-        double W = 1.0 / (n - 3);
-
-        // Compute between-imputation variance B
-        double B_sum = 0.0;
-        for (int m = 0; m < M; m++) {
-            double diff = z_m[m] - avgz;
-            B_sum += diff * diff;
-        }
-        double B = B_sum / (M - 1);
-
-        // Compute total variance TV
-        double TV = W + (1.0 + 1.0 / M) * B;
-
-        // Compute test statistic ts
-        double ts = avgz / sqrt(TV);
-
-        // Compute degrees of freedom df
-        double tmp = (W / B) * (M / (M + 1.0));
-        double df = (M - 1) * (1.0 + tmp) * (1.0 + tmp);
-
-        // Compute p-value using the cumulative t-distribution function
-        double p_val = 2.0 * pt(fabs(ts), df); 
-
-        // Compare p-value with alpha and update G accordingly
-        if (p_val < alpha) {
-            pMax[row * n + col] = p_val;
+        double res = C[row * n + col];
+        res = abs( 0.5 * log( abs ( (1 + res) / (1 - res) ) ) );
+        if (res < th){
+            pMax[row * n + col] = res;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
-        } else {
+        }
+        else {
             G[row * n + col] = 1;
             G[col * n + row] = 1;
         }
     }
-
-    // Ensure the diagonal elements are set to 0
-    if (row == col && row < n) {
+    if (row == col && col < n){
         G[row * n + col] = 0;
         G[col * n + row] = 0;
     }

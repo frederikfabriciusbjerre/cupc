@@ -4,6 +4,7 @@
 
 #include "gpuerrors.h"
 #include "cuPC-S.h"
+//#include "pt.cuh"
 
 //========================> Main Function Parameter <========================
 //Description : this function just calculate one Stage of PC stable algorithm

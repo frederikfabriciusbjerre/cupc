@@ -31,7 +31,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
     int    *mutex_cuda;
 
     int    n = *P;
-    int    M = *m
+    int    M = *m;
 	int    nprime = 0;
     dim3   BLOCKS_PER_GRID;
     dim3   THREADS_PER_BLOCK;

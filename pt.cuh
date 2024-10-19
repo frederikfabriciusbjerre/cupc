@@ -4,26 +4,6 @@
 #include <cuda_runtime.h>
 #include <math_constants.h>
 
-// Device function to compute the natural logarithm of the gamma function
-__device__ double lgamma_device(double x) {
-    // Use the Lanczos approximation for the logarithm of the gamma function
-    // Constants for the approximation
-    const double coefficients[6] = {
-        76.18009172947146,     -86.50532032941677,
-        24.01409824083091,     -1.231739572450155,
-        0.1208650973866179e-2, -0.5395239384953e-5
-    };
-    double y = x;
-    double tmp = x + 5.5;
-    tmp -= (x + 0.5) * log(tmp);
-    double ser = 1.000000000190015;
-    for (int i = 0; i < 6; i++) {
-        y += 1.0;
-        ser += coefficients[i] / y;
-    }
-    return -tmp + log(2.5066282746310005 * ser);
-}
-
 // Device function to compute the continued fraction for the incomplete beta function
 __device__ double betacf(double a, double b, double x) {
     const int MAX_ITER = 100;
@@ -71,7 +51,7 @@ __device__ double betai(double a, double b, double x) {
     if (x == 0.0 || x == 1.0) return x; // Edge cases
 
     // Compute ln(Beta(a, b))
-    double ln_beta = lgamma_device(a) + lgamma_device(b) - lgamma_device(a + b);
+    double ln_beta = lgamma(a) + lgamma(b) - lgamma(a + b);
 
     // Compute front factor
     double front = exp(log(x) * a + log(1.0 - x) * b - ln_beta) / a;

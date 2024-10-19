@@ -1,7 +1,8 @@
-#include <cuda.h>
+#include <stdio.h>
 #include <cuda_runtime.h>
-#include <math.h>
-#include "pt_device.cuh"
+#include <cmath> // For math functions
+#include "pt.cuh"
+
 
 // Example kernel that computes the CDF for an array of t-values
 __global__ void compute_cdf(double *t_values, double *df_values, double *results, int n) {
@@ -29,7 +30,7 @@ int main() {
 
     // Initialize t-values and df-values
     for (int i = 0; i < n; i++) {
-        h_t_values[i] = -3.0 + i * 0.6; // Example t-values from -3 to 3
+        h_t_values[i] = -3.0 + i * 0.7; // Example t-values from -3 to 3
         h_df_values[i] = 10.0;          // Degrees of freedom
     }
 

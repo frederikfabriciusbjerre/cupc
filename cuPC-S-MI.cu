@@ -4,7 +4,7 @@
 
 #include "gpuerrors.h"
 #include "cuPC-S.h"
-#include "pt.cuh"
+//#include "pt.cuh"
 
 //========================> Main Function Parameter <========================
 //Description : this function just calculate one Stage of PC stable algorithm
@@ -57,7 +57,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
             if ( (n * n) < 1024) {
                 BLOCKS_PER_GRID   = dim3( 1, 1 ,1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n, M);
                 CudaCheckError();
             }
             else {

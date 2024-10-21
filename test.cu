@@ -54,7 +54,7 @@ int main() {
 
     // Output the results
     for (int i = 0; i < n; i++) {
-        printf("t: %f, df: %f, CDF: %f\n", h_t_values[i], h_df_values[i], h_results[i]);
+        printf("t: %f, df: %f, CDF: %f\n", h_t_values[i], h_df_values[i], (1-h_results[i]));
     }
 
     // Free memory

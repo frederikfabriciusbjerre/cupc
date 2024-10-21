@@ -4,7 +4,7 @@
 
 #include "gpuerrors.h"
 #include "cuPC-S-MI.h"
-//#include "pt.cuh"
+#include "pt.cuh"
 
 //========================> Main Function Parameter <========================
 //Description : this function just calculate one Stage of PC stable algorithm
@@ -12,7 +12,7 @@
 //@param VarSize    = Number of Nodes in Dataset
 //@param Stage      = Number of Neighbor in each dimension of Neighbor Matrix
 //@param G          = Is the Graph array
-//@param TH         = The Th for deleting each edge
+//@param Alpha      = The alpha significance level for deleting each edge
 //@param Nbr        = Neighbor Matrix with format of:
 //[i , j , |Neighbor idx 1|,|Neighbor idx 2| , ...]
 //@param Nrow       = Number Of row in Nbr matrix
@@ -20,7 +20,7 @@
 //============================================================================
 
 
-void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxlevel, double *pMax, int* SepSet)
+void SkeletonMI(double* C, int *P, int *m, int *G, float *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet)
 {
     double *C_cuda;         //Copy of C array in GPU
     double *pMax_cuda;
@@ -32,6 +32,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
 
     int    n = *P;
     int    M = *m;
+    float  alpha = *Alpha;
 	int    nprime = 0;
     dim3   BLOCKS_PER_GRID;
     dim3   THREADS_PER_BLOCK;
@@ -57,13 +58,13 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
             if ( (n * n) < 1024) {
                 BLOCKS_PER_GRID   = dim3( 1, 1 ,1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n, M);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, M);
                 CudaCheckError();
             }
             else {
                 BLOCKS_PER_GRID   = dim3(ceil( ( (double) (n)) / 32.0), ceil( ( (double) (n)) / 32.0), 1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, Th[0], pMax_cuda, n, M);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, M);
                 CudaCheckError();
             }
             BLOCKS_PER_GRID = dim3(n * n, 1, 1);
@@ -91,7 +92,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL1, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL1, 1, 1);
                 // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
-                cal_Indepl1 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda, G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, Th[1], n);
+                cal_Indepl1 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda, G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n);
                 // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
                 HANDLE_ERROR( cudaDeviceSynchronize() ) ;
@@ -101,7 +102,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL2, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL2, 1, 1);
                 // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
-                cal_Indepl2 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[2]);
+                cal_Indepl2 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
             }
@@ -109,74 +110,74 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Th, int *l, int *maxl
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL3, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL3, 1, 1);
                 // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
-                cal_Indepl3 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[3]);
+                cal_Indepl3 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
             }
             else if(*l == 4){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL4, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL4, 1, 1);
-                cal_Indepl4 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[4]);
+                cal_Indepl4 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 5){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL5, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL5, 1, 1);
-                cal_Indepl5 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[5]);
+                cal_Indepl5 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 6){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL6, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL6, 1, 1);
-                cal_Indepl6 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[6]);
+                cal_Indepl6 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 7){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL7, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL7, 1, 1);
-                cal_Indepl7 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[7]);
+                cal_Indepl7 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 8){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL8, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL8, 1, 1);
-                cal_Indepl8 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[8]);
+                cal_Indepl8 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 9){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL9, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL9, 1, 1);
-                cal_Indepl9 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[9]);
+                cal_Indepl9 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 10){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL10, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL10, 1, 1);
-                cal_Indepl10 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[10]);
+                cal_Indepl10 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 11){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL11, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL11, 1, 1);
-                cal_Indepl11 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[11]);
+                cal_Indepl11 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 12){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL12, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL12, 1, 1);
-                cal_Indepl12 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[12]);
+                cal_Indepl12 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 13){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL13, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL13, 1, 1);
-                cal_Indepl13 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[13]);
+                cal_Indepl13 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             }
             else if(*l == 14){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL14, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL14, 1, 1);
-                cal_Indepl14 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, Th[14]);
+                cal_Indepl14 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
                 CudaCheckError();
             } else{
                 //TODO: add PC serial
@@ -222,28 +223,68 @@ __global__ void SepSet_initialize(int *SepSet, int size){
     SepSet[row * ML + tx] = -1;
 }
 
-__global__ void cal_Indepl0(double *C, int *G, double th, double *pMax, int n)
+__global__ void cal_Indepl0(double *C, int *G, float alpha, double *pMax, int n, int M)
 {
     int row = blockDim.x * bx + tx;
     int col = blockDim.y * by + ty;
     if(row < col && col < n){
         double z_m[MAX_M]; // MAX_M set to 100 atm
         double z_sum = 0.0;
-        double res = C[row * n + col];
-        res = abs( 0.5 * log( abs ( (1 + res) / (1 - res) ) ) );
-        if (res < th){
-            pMax[row * n + col] = res;
+
+        // Loop over all M imputations
+        for (int m = 0; m < M; m++) {
+            // Compute the index into the 1D C array
+            int C_index = row * n * M + col * M + m;
+            // Compute the correlation coefficient for this imputation
+            double res_m = C[C_index];
+
+            // Compute Fisher's Z-transformation
+            res_m = fabs(0.5 * log((2 * res_m / ( 1 - res_m))));
+            z_m[m] = res_m;
+            z_sum += res_m;
+        }
+        // Compute average z-value across imputations
+        double avgz = z_sum / M;
+
+        // within-imp variance W
+        // Since length(S) = 0 (no conditioning set), W = 1 / (n - 3)
+        double W = 1.0 / (n - 3);
+
+        // between imp variance, assumes M not 0
+        double B_sum = 0.0;
+        for (int m = 0; m < M; m++) {
+            double diff = z_m[m] - avgz;
+            B_sum += diff * diff;
+        }
+        double B = B_sum / (M - 1);
+
+        // Compute total variance TV
+        double TV = W + (1.0 + 1.0 / M) * B;
+
+        // Compute test statistic tsZZZzz
+        double ts = avgz / sqrt(TV);
+
+        // Compute degrees of freedom df
+        double temp = (W / B) * (M / (M + 1.0));
+        double df = (M - 1) * (1.0 + temp) * (1.0 + temp);
+
+        // Compute p-value using the cumulative t-distribution function
+        double p_val = 2.0 * (1.0 - pt(ts, df)); 
+
+        // Compare p-value with alpha and update G accordingly
+        if (p_val < alpha) {
+            pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
-        }
-        else {
+        } else {
             G[row * n + col] = 1;
             G[col * n + row] = 1;
         }
     }
-    if (row == col && col < n){
+
+    // Ensure the diagonal elements are set to 0
+    if (row == col && row < n) {
         G[row * n + col] = 0;
-        G[col * n + row] = 0;
     }
 }
 

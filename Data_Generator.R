@@ -5,9 +5,9 @@ library(MASS)
 library(tictoc)
 library(igraph)
 
-
-p <- 60 #number of nodes
-probability <- 0.2
+set.seed(123)
+p <- 100 #number of nodes
+probability <- 0.5
 n <- 1000 #number of sample
 vars <- c(paste0(1:p))
 set.seed(43)

@@ -6,9 +6,9 @@ library(igraph)
 
 source("cuPC.R")
 
-p <- 
+p <- 50
 prob_dag <- 0.55
-n <- 1000
+n <- 10000
 alpha <- 0.01
 
 # Simulate random DAG and data
@@ -19,7 +19,7 @@ data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3)
 suffStat <- list(C = cor(data), n = nrow(data))
 cat("\n")
 tic()
-stable_fast_fit <- pc(suffStat, indepTest=gaussCItest, p=p, skel.method="stable.fast", alpha=alpha)
+stable_fast_fit <- pc(suffStat, indepTest = gaussCItest, p = p, skel.method = "stable", alpha = alpha)
 print("the total time consumed by stable.fast is:")
 toc()
 cat("\n")
@@ -28,7 +28,7 @@ cat("\n")
 
 
 tic()
-cuPC_fit <- cu_pc(suffStat, p=p, alpha=alpha)
+cuPC_fit <- cu_pc(suffStat, p = p, alpha = alpha)
 print("The total time consumed by cuPC is:")
 toc()
 cat("\n")

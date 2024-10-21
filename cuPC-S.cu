@@ -551,7 +551,7 @@ __global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));
 
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock                        
@@ -702,7 +702,7 @@ __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));
 
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -868,7 +868,7 @@ __global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));
 
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -1051,7 +1051,7 @@ __global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));
 
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -1254,7 +1254,7 @@ __global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));
 
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -1474,7 +1474,7 @@ __global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -1626,7 +1626,7 @@ __global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -1781,7 +1781,7 @@ __global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Se
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -1937,7 +1937,7 @@ __global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Se
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -2094,7 +2094,7 @@ __global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Se
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -2253,7 +2253,7 @@ __global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Se
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
@@ -2413,7 +2413,7 @@ __global__ void cal_Indepl14(double *C, int *G, int* GPrime, int *mutex, int* Se
                     H[1][1]   = 1  - H[1][1];
 
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
+                    Z     =  abs(0.5 * log((2 * rho / ( 1 - rho))));     
                     
                     if (Z < th){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock

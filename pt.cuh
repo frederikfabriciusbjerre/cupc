@@ -64,6 +64,9 @@ __device__ double betai(double a, double b, double x) {
 
 // Device function to compute the CDF of the Student's t-distribution
 __device__ double pt(double t, double df) {
+    if (isinf(df)) {
+        return 0.0;
+    }
     double x = df / (df + t * t);
     double a = df / 2.0;
     double b = 0.5;

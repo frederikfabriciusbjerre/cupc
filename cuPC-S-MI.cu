@@ -20,7 +20,7 @@
 //============================================================================
 
 
-void SkeletonMI(double* C, int *P, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet)
+void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet)
 {
     double *C_cuda;         //Copy of C array in GPU
     double *pMax_cuda;
@@ -31,6 +31,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Alpha, int *l, int *m
     int    *mutex_cuda;
 
     int    n = *P;
+    int    nrows = *Nrows;
     int    M = *m;
     double  alpha = *Alpha;
 	int    nprime = 0;
@@ -58,13 +59,13 @@ void SkeletonMI(double* C, int *P, int *m, int *G, double *Alpha, int *l, int *m
             if ( (n * n) < 1024) {
                 BLOCKS_PER_GRID   = dim3( 1, 1 ,1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, M);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, nrows, M);
                 CudaCheckError();
             }
             else {
                 BLOCKS_PER_GRID   = dim3(ceil( ( (double) (n)) / 32.0), ceil( ( (double) (n)) / 32.0), 1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, M);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, nrows, M);
                 CudaCheckError();
             }
             BLOCKS_PER_GRID = dim3(n * n, 1, 1);
@@ -223,32 +224,32 @@ __global__ void SepSet_initialize(int *SepSet, int size){
     SepSet[row * ML + tx] = -1;
 }
 
-__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int M)
+__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int nrows, int M)
 {
     int row = blockDim.x * bx + tx;
     int col = blockDim.y * by + ty;
+
     if(row < col && col < n){
-        double z_m[MAX_M]; // MAX_M set to 100 atm
+        double z_m[MAX_M]; // MAX_M set to 10 atm
         double z_sum = 0.0;
 
         // Loop over all M imputations
         for (int m = 0; m < M; m++) {
             // Compute the index into the 1D C array
-            int C_index = row * n * M + col * M + m;
+            int C_index = m * n * n + row * n + col;
             // Compute the correlation coefficient for this imputation
             double res_m = C[C_index];
 
             // Compute Fisher's Z-transformation
-            res_m = fabs(0.5 * log((2 * res_m / ( 1 - res_m))));
+            res_m = abs( 0.5 * log( abs ( (1 + res_m) / (1 - res_m) ) ) );
             z_m[m] = res_m;
             z_sum += res_m;
         }
         // Compute average z-value across imputations
         double avgz = z_sum / M;
-
         // within-imp variance W
         // Since length(S) = 0 (no conditioning set), W = 1 / (n - 3)
-        double W = 1.0 / (n - 3);
+        double W = 1.0 / (nrows - 3);
 
         // between imp variance, assumes M not 0
         double B_sum = 0.0;
@@ -257,21 +258,26 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
             B_sum += diff * diff;
         }
         double B = B_sum / (M - 1);
-
-        // Compute total variance TV
         double TV = W + (1.0 + 1.0 / M) * B;
 
-        // Compute test statistic tsZZZzz
         double ts = avgz / sqrt(TV);
 
         // Compute degrees of freedom df
-        double temp = (W / B) * (M / (M + 1.0));
-        double df = (M - 1) * (1.0 + temp) * (1.0 + temp);
+        double temp;
+        double df;
+        double p_val;
+        if (B > 0){
+            temp = (W / B) * (M / (M + 1.0));
+            df = (M - 1) * (1.0 + temp) * (1.0 + temp);
+            p_val = 2.0 * (1.0 - pt(ts, df)); 
+        }
+        else{
+            p_val = 0;
+        }
 
         // Compute p-value using the cumulative t-distribution function
-        double p_val = 2.0 * (1.0 - pt(ts, df)); 
-
-        // Compare p-value with alpha and update G accordingly
+        
+        printf("avgz: %f, W: %f, B: %f, TV: %f, ts: %f, df: %f, p_val: %f\n", avgz, W, B, TV, ts, df, p_val);
         if (p_val < alpha) {
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
@@ -281,8 +287,6 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
             G[col * n + row] = 1;
         }
     }
-
-    // Ensure the diagonal elements are set to 0
     if (row == col && row < n) {
         G[row * n + col] = 0;
     }

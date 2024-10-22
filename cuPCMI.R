@@ -120,8 +120,9 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
 
     start_time <- proc.time()
     z <- .C("SkeletonMI",
-        C = as.double(C_array),
+        C = as.double(C_vector),
         p = as.integer(p),
+        Nrows = as.integer(n),
         m = as.integer(m),
         G = as.integer(G),
         Alpha = as.double(alpha),
@@ -186,7 +187,8 @@ getSuff <- function(X) {
     }
     
     C_list <- lapply(X, stats::cor)
-    n <- nrow(C_list[[1]])       # Number of variables
+    #hardcored
+    n <- 1000 #ifelse(mice::is.mids(X), nrow(X$data), nrow(X[[1]]))
     m <- length(C_list)           # Number of imputations
     
     C_array <- array(0, dim = c(n, n, m))

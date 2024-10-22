@@ -50,7 +50,7 @@
 #define MAX_M 10
 
 //==========================> Function Declaration <==========================
-__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int M);
+__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int nrows, int M);
 __global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n);
 __global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
@@ -78,7 +78,7 @@ __device__ void pseudoinversel11(double M2[][11], double M2Inv[][11], double v[]
 __device__ void pseudoinversel12(double M2[][12], double M2Inv[][12], double v[][12], double *rv1, double *w, double res1[][12] );
 __device__ void pseudoinversel13(double M2[][13], double M2Inv[][13], double v[][13], double *rv1, double *w, double res1[][13] );
 __device__ void pseudoinversel14(double M2[][14], double M2Inv[][14], double v[][14], double *rv1, double *w, double res1[][14] );
-extern "C" void SkeletonMI(double* C, int *P, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet);
+extern "C" void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet);
 
 __global__ void Initialize (int *Mat, int n);
 __global__ void scan_compact(int* G_Compact,  const int* G, const int n, int *nprime);

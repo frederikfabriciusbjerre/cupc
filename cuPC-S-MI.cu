@@ -266,6 +266,7 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
         double temp;
         double df;
         double p_val;
+        // to do
         if (B > 0){
             temp = (W / B) * (M / (M + 1.0));
             df = (M - 1) * (1.0 + temp) * (1.0 + temp);

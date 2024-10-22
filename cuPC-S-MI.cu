@@ -20,7 +20,7 @@
 //============================================================================
 
 
-void SkeletonMI(double* C, int *P, int *m, int *G, float *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet)
+void SkeletonMI(double* C, int *P, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet)
 {
     double *C_cuda;         //Copy of C array in GPU
     double *pMax_cuda;
@@ -32,7 +32,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, float *Alpha, int *l, int *ma
 
     int    n = *P;
     int    M = *m;
-    float  alpha = *Alpha;
+    double  alpha = *Alpha;
 	int    nprime = 0;
     dim3   BLOCKS_PER_GRID;
     dim3   THREADS_PER_BLOCK;
@@ -215,7 +215,7 @@ void SkeletonMI(double* C, int *P, int *m, int *G, float *Alpha, int *l, int *ma
     HANDLE_ERROR( cudaFree(G_cuda) );
     HANDLE_ERROR( cudaFree(mutex_cuda) );
     HANDLE_ERROR( cudaFree(pMax_cuda) );
-}// Skeleton
+}// SkeletonMI
 
 
 __global__ void SepSet_initialize(int *SepSet, int size){
@@ -223,7 +223,7 @@ __global__ void SepSet_initialize(int *SepSet, int size){
     SepSet[row * ML + tx] = -1;
 }
 
-__global__ void cal_Indepl0(double *C, int *G, float alpha, double *pMax, int n, int M)
+__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int M)
 {
     int row = blockDim.x * bx + tx;
     int col = blockDim.y * by + ty;
@@ -289,7 +289,7 @@ __global__ void cal_Indepl0(double *C, int *G, float alpha, double *pMax, int n,
 }
 
 
-__global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double th, int n)
+__global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n)
 {
     int YIdx;
     int XIdx = by;
@@ -357,7 +357,7 @@ __global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sep
                     rho     = H[0][1] / (sqrt(fabs(H[0][0])) * sqrt(fabs(H[1][1])));
                     Z       = fabs( 0.5 * (log( fabs((1 + rho))) - log(fabs(1 - rho)) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -371,7 +371,7 @@ __global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -468,7 +468,7 @@ __global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho   =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                     Z     =  0.5 * abs( log( abs( (1 + rho)  /  (1 - rho) ) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -483,7 +483,7 @@ __global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -599,7 +599,7 @@ __global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock                        
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -615,7 +615,7 @@ __global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -750,7 +750,7 @@ __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -768,7 +768,7 @@ __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -916,7 +916,7 @@ __global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -935,7 +935,7 @@ __global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -1099,7 +1099,7 @@ __global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -1118,7 +1118,7 @@ __global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -1302,7 +1302,7 @@ __global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
 
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -1322,7 +1322,7 @@ __global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -1522,7 +1522,7 @@ __global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -1544,7 +1544,7 @@ __global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sep
 }
 
 
-__global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     int YIdx;
     int XIdx = by;
@@ -1674,7 +1674,7 @@ __global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sep
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -1696,7 +1696,7 @@ __global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     
     int YIdx;
@@ -1829,7 +1829,7 @@ __global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Se
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -1852,7 +1852,7 @@ __global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     
     int YIdx;
@@ -1985,7 +1985,7 @@ __global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Se
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -2009,7 +2009,7 @@ __global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     
     int YIdx;
@@ -2142,7 +2142,7 @@ __global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Se
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -2167,7 +2167,7 @@ __global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     
     int YIdx;
@@ -2301,7 +2301,7 @@ __global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Se
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
@@ -2327,7 +2327,7 @@ __global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl14(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double th)
+__global__ void cal_Indepl14(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
 {
     
     int YIdx;
@@ -2461,7 +2461,7 @@ __global__ void cal_Indepl14(double *C, int *G, int* GPrime, int *mutex, int* Se
                     rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
                     Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
                     
-                    if (Z < th){
+                    if (Z < alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;

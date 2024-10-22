@@ -1,5 +1,6 @@
 library(pcalg)
 library(Rfast)
+library(mice)
 
 cu_pc_MI <- function(suffStat, indepTest, alpha, labels, p,
                      fixedGaps = NULL, fixedEdges = NULL, NAdelete = TRUE,
@@ -33,14 +34,17 @@ cu_pc_MI <- function(suffStat, indepTest, alpha, labels, p,
         }
 
         if (solve.confl) {
-            stop("Versions of PC using lists for the orientation rules (and possibly bi-directed edges)\n can only be run with 'u2pd = relaxed'")
+            stop("Versions of PC using lists for the orientation rules (and possibly bi-directed edges)\n
+            can only be run with 'u2pd = relaxed'")
         }
     }
 
     if (conservative && maj.rule) stop("Choose either conservative PC or majority rule PC!")
 
     ## Skeleton
-    skel <- cu_skeleton_MI(suffStat, indepTest, alpha, labels = labels, NAdelete = NAdelete, m.max = m.max, verbose = verbose)
+    skel <- cu_skeleton_MI(suffStat, indepTest, alpha,
+        labels = labels, NAdelete = NAdelete, m.max = m.max, verbose = verbose
+    )
     skel@call <- cl # so that makes it into result
 
     ## Orient edges
@@ -89,31 +93,26 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     # save maximal p value
     pMax <- matrix(0, nrow = p, ncol = p)
     number_of_levels <- 50
-    n <- nrow(suffStat[[1]])  
-    m <- length(suffStat)-1    
-    threshold <- matrix(0, nrow = 1, ncol = number_of_levels)
-    for (i in 0:(min(number_of_levels, n - 3) - 1)) {
-        threshold[i] <- alpha
-    }
-    for (i in 1:m) {
-        C_array[, , i] <- t(C_array[, , i])
-    }
-
-    # Now, flatten the array
+    n <- suffStat$n
+    m <- suffStat$m
+    threshold <- rep(alpha, number_of_levels) # Simplified threshold assignment
+    C_array <- suffStat$C  
     C_vector <- as.vector(C_array)
-
+    
+    # Initialize adjacency matrix G
     G <- matrix(TRUE, nrow = p, ncol = p)
     diag(G) <- FALSE
-    done <- TRUE
     ord <- 0
-    G <- G * 1
-
+    done <- TRUE
+    G <- G * 1  # Convert logical to integer
+    
+    # Determine maximum levels
     if (m.max == Inf) {
         max_level <- 14
     } else {
         max_level <- m.max
     }
-
+    
     sepsetMatrix <- matrix(-1, nrow = p * p, ncol = 14)
     dyn.load("SkeletonMI.so")
 
@@ -125,7 +124,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
         p = as.integer(p),
         m = as.integer(m),
         G = as.integer(G),
-        Th = as.double(threshold),
+        Alpha = as.double(alpha),
         l = as.integer(ord),
         max_level = as.integer(max_level),
         pmax = as.double(pMax),
@@ -175,16 +174,27 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
 
 # copied and changed from micd github
 getSuff <- function(X) {
-    if (!(mice::is.mids(X) | is.list(X))) {
-        stop("data is neither a list nor a mids object")
+    if (!(mice::is.mids(X) || is.list(X))) {
+        stop("Data is neither a list nor a mids object.")
     }
+    
     if (inherits(X, "mids")) {
         X <- mice::complete(X, action = "all")
-        if (length(which.is(X, "factor") > 0)) {
-            stop("data must be all numeric.")
+        if (any(sapply(X, is.factor))) {
+            stop("Data must be all numeric.")
         }
     }
-    C <- lapply(X, stats::cor)
-    n <- nrow(X[[1]])
-    c(C, n)
+    
+    C_list <- lapply(X, stats::cor)
+    n <- nrow(C_list[[1]])       # Number of variables
+    m <- length(C_list)           # Number of imputations
+    
+    C_array <- array(0, dim = c(n, n, m))
+    
+    for (i in 1:m) {
+        C_array[, , i] <- t(C_list[[i]])
+    }
+    
+    return(list(C = C_array, n = n, m = m))
 }
+

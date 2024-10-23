@@ -47,11 +47,11 @@
 #define ParGivenL14 64
 #define NumOfBlockForEachNodeL14 2
 #define ML 14
-#define MAX_M 10
+#define MAX_M 100
 
 //==========================> Function Declaration <==========================
 __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int nrows, int M);
-__global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n);
+__global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);

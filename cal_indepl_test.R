@@ -9,7 +9,6 @@ library(mice)
 source("cuPC.R")
 source("cuPCMI.R")
 gaussMItest <- function (x, y, S, suffStat) {
-  S = NULL
   # number of imputations
   M <- length(suffStat) - 1
   # sample size
@@ -54,12 +53,12 @@ zStatMI <- function (x, y, S, C, n)
 
 log_q1pm <- function(r) log1p(2 * r / (1 - r))
 
-set.seed(1)
-p <- 10
+set.seed(12)
+p <- 17
 prob_dag <- 0.55
-prob_miss <- 0.25
+prob_miss <- 0.7
 n <- 1000
-alpha <- 0.01
+alpha <- 0.05
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -74,14 +73,15 @@ data_missing <- ampute(data, prop = prob_miss,
 
 # naive mice imputation
 tic()
-imputed_data <- mice(data_missing, m = 100, method='pmm', printFlag = FALSE)
+imputed_data <- mice(data_missing, m = 10, method = 'pmm', printFlag = FALSE)
 toc()
 
 suffStatMI <- getSuffCU(imputed_data) #hardcoded n=1000
 suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 
 tic()
-micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, m.max = 0)
+micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, skel.method = "stable.fast",
+ m.max = 1)
 print("The total time consumed by micd_PC is:")
 toc()
 cat("\n")
@@ -90,11 +90,11 @@ print(micd_PC)
 cat("\n")
 
 tic()
-cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = 0)
+cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = 1)
 print("The total time consumed by cuPCMI is:")
 toc()
 cat("\n")
 cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
-system("R")
+#system("R")

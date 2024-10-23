@@ -60,7 +60,7 @@ prob_dag <- 0.55
 prob_miss <- 0.25
 n <- 1000
 alpha <- 0.1
-max_order <- 1
+max_order <- 2
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -78,12 +78,12 @@ tic()
 imputed_data <- mice(data_missing, m = 10, method = 'pmm', printFlag = FALSE)
 toc()
 
-suffStatMI <- getSuffCU(imputed_data) #hardcoded n=1000
+suffStatMI <- getSuffCU(imputed_data) 
 suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 
 tic()
 micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, skel.method = "stable",
- m.max = max_order, verbose = 1)
+ m.max = max_order)
 print("The total time consumed by micd_PC is:")
 toc()
 cat("\n")
@@ -92,7 +92,7 @@ print(micd_PC)
 cat("\n")
 
 tic()
-cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order, verbose = 1)
+cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
 print("The total time consumed by cuPCMI is:")
 toc()
 cat("\n")

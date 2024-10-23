@@ -439,6 +439,7 @@ __global__ void cal_Indepl1(
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx;
+                            // printf("XIdx=%d, YIdx=%d, NbrIdx=%d, p_val=%f\n", XIdx, YIdx, NbrIdx, p_val);
                         }
                     }
                 }
@@ -636,6 +637,7 @@ __global__ void cal_Indepl2(
                             pMax[XIdx * n + YIdx] = p_val;
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
+                            // printf("XIdx=%d, YIdx=%d, NbrIdx=(%d, %d), p_val=%f\n", XIdx, YIdx, NbrIdx[0], NbrIdx[1], p_val);
                         }
                     }
                 }

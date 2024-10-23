@@ -46,7 +46,6 @@ cu_pc_MI <- function(suffStat, indepTest, alpha, labels, p,
         labels = labels, NAdelete = NAdelete, m.max = m.max, verbose = verbose
     )
     skel@call <- cl # so that makes it into result
-
     ## Orient edges
     if (!conservative && !maj.rule) {
         switch (u2pd,
@@ -54,7 +53,6 @@ cu_pc_MI <- function(suffStat, indepTest, alpha, labels, p,
                 "retry" = udag2pdagSpecial(skel)$pcObj,
                 "relaxed" = udag2pdagRelaxed(skel, verbose = verbose, solve.confl = solve.confl))
     } else { ## u2pd "relaxed" : conservative _or_ maj.rule
-
         ## version.unf defined per default
         ## Tetrad CPC works with version.unf=c(2,1)
         ## see comment on pc.cons.intern for description of version.unf
@@ -134,24 +132,26 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     pMax <- (matrix(z$pmax, nrow = p, ncol = p))
     pMax[which(pMax == -100000)] <- -Inf
     if (ord <= 14) {
-        sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 14, ncol = p^2))
-        index_of_cuted_edge <- row(sepsetMatrix)[which(sepsetMatrix != -1)]
-        for (i in index_of_cuted_edge) {
-            y <- floor(i / p) + 1
-            x <- i - ((y - 1) * p) + 1
-            # find index
-            j <- 1
-            for (j in 1:14) {
-                if (sepsetMatrix[i, j] == -1) {
-                    j <- j - 1
-                    break
-                }
-            }
-            sepset[[x]][[y]] <- sepset[[y]][[x]] <- sepsetMatrix[i, 1:j]
-        }
-    } else {
-        # TODO: Update sepset for more than 14 level
+    sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 14, ncol = p^2))
+    index_of_cuted_edge <- which(rowSums(sepsetMatrix != -1) > 0)
+    print(index_of_cuted_edge)
+    for (i in index_of_cuted_edge) {
+        edge_idx <- i - 1  # Adjust for R's 1-based indexing
+        x <- (edge_idx %% p) + 1
+        y <- (edge_idx %/% p) + 1
+
+        # Find the last non -1 entry in the sepset row
+        sepset_entries <- sepsetMatrix[i, ]
+        valid_entries <- sepset_entries[sepset_entries != -1]
+
+        # Assign the separation set
+        #sepset[[x]][[y]] <- sepset[[y]][[x]] <- valid_entries + 1
+        sepset[[x]][[y]] <- valid_entries + 1
     }
+    } else {
+        # TODO: Update sepset for more than 14 levels
+    }
+
     # print(ord)
     ## transform matrix to graph object :
     Gobject <-

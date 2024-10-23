@@ -53,10 +53,9 @@
 __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int nrows, int M);
 __global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
-__global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n);
+__global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
-__global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);
 __global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha);

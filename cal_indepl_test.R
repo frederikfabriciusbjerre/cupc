@@ -56,9 +56,10 @@ log_q1pm <- function(r) log1p(2 * r / (1 - r))
 set.seed(12)
 p <- 17
 prob_dag <- 0.55
-prob_miss <- 0.7
+prob_miss <- 0.25
 n <- 1000
-alpha <- 0.05
+alpha <- 0.1
+max_order <- 2
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -81,7 +82,7 @@ suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 
 tic()
 micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, skel.method = "stable.fast",
- m.max = 1)
+ m.max = max_order)
 print("The total time consumed by micd_PC is:")
 toc()
 cat("\n")
@@ -90,11 +91,11 @@ print(micd_PC)
 cat("\n")
 
 tic()
-cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = 1)
+cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
 print("The total time consumed by cuPCMI is:")
 toc()
 cat("\n")
 cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
-#system("R")
+system("R")

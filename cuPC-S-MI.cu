@@ -239,9 +239,9 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
             int C_index = m * n * n + row * n + col;
             // Compute the correlation coefficient for this imputation
             double res_m = C[C_index];
-
             // Compute Fisher's Z-transformation
             res_m = abs( 0.5 * log( abs ( (1 + res_m) / (1 - res_m) ) ) );
+            
             z_m[m] = res_m;
             z_sum += res_m;
         }
@@ -274,7 +274,7 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
             df = INFINITY ;
         }
         double p_val = 2.0 * (1.0 - pt(ts, df));
-        
+
         // Compute p-value using the cumulative t-distribution function
         if (p_val >= alpha) {
             pMax[row * n + col] = p_val;

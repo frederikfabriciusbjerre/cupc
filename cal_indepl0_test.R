@@ -55,9 +55,10 @@ zStatMI <- function (x, y, S, C, n)
 log_q1pm <- function(r) log1p(2 * r / (1 - r))
 
 set.seed(1)
-p <- 10
+p <- 20
 prob_dag <- 0.55
-n <- 1000
+prob_miss <- 0.25
+n <- 10000
 alpha <- 0.01
 
 # Simulate random DAG and data
@@ -65,9 +66,19 @@ dag_true <- randomDAG(p, prob = prob_dag)
 cpdag_true <- dag2cpdag(dag_true)
 print(cpdag_true)
 data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3)
+  
+# missing at random data 
+data_missing <- ampute(data, prop = prob_miss, 
+                        mech = "MAR", 
+                        bycases = TRUE)$amp
 
-suffStatMI <- getSuff(list(data, data, data)) #hardcoded n=1000
-suffStatMICD <- micd::getSuff(list(data, data, data), test="gaussMItest")
+# naive mice imputation
+imputed_data <- mice(data_missing, m = 10, method='pmm', printFlag = FALSE)
+imputed_data
+suffStatMI <- getSuffCU(imputed_data) #hardcoded n=1000
+suffStatMI
+suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
+suffStatMICD
 suffStat <- list(C = cor(data), n = nrow(data))
 # cat("\n")
 # tic()
@@ -96,4 +107,4 @@ cat("\n")
 cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
-#system("R")
+system("R")

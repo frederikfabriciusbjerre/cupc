@@ -156,7 +156,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     } else {
         # TODO: Update sepset for more than 14 level
     }
-    print(ord)
+    #print(ord)
     ## transform matrix to graph object :
     Gobject <-
         if (sum(G) == 0) {
@@ -174,7 +174,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
 } ## end{ skeleton }
 
 # copied and changed from micd github
-getSuff <- function(X) {
+getSuffCU <- function(X) {
     if (!(mice::is.mids(X) || is.list(X))) {
         stop("Data is neither a list nor a mids object.")
     }
@@ -186,17 +186,17 @@ getSuff <- function(X) {
         }
     }
     
-    C_list <- lapply(X, stats::cor)
-    #hardcored
-    p <- ncol(X[[1]]) #ifelse(mice::is.mids(X), nrow(X$data), nrow(X[[1]]))
-    m <- length(C_list)           # Number of imputations
+    C_list <- lapply(X, cor)
+    p <- ncol(X[[1]])
+    m <- length(C_list)
     
     C_array <- array(0, dim = c(p, p, m))
     
     for (i in 1:m) {
-        C_array[, , i] <- t(C_list[[i]])
+        C_array[, , i] <- C_list[[i]]
     }
-    
+    # replace NA with 0.0, this is how it is handled in pcalg package
+    C_array[is.na(C_array)] <- 0.0
     return(list(C = C_array, n = nrow(X[[1]]), m = m))
 }
 

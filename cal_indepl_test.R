@@ -39,6 +39,7 @@ gaussMItest <- function (x, y, S, suffStat) {
   
   # 7. pvalue
   pvalue <- 2 * stats::pt(abs(ts), df = df, lower.tail = FALSE)
+
   #cat(sprintf("avgz: %f, W: %f, B: %f, TV: %f, ts: %f, df: %f, p_val: %f\n", avgz, W, B, TV, ts, df, pvalue))
   return(pvalue)
 }
@@ -98,4 +99,20 @@ cat("\n")
 cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
-system("R")
+shdSkeleton <- function(fit1, fit2){
+  graph1 <- fit1 %>% getGraph() %>% ugraph()
+  graph2 <- fit2 %>% getGraph() %>% ugraph()
+  return (shd(graph1, graph2))
+}
+shdSkeleton(micd_PC, cuPCMI_fit)
+cuPCMI_fit@sepset
+micd_PC@sepset
+# if (require(Rgraphviz)) {
+#   ## show estimated CPDAG
+#   par(mfrow = c(1, 2))
+#   plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
+#   plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
+# }
+
+
+#system("R")

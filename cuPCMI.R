@@ -49,25 +49,21 @@ cu_pc_MI <- function(suffStat, indepTest, alpha, labels, p,
 
     ## Orient edges
     if (!conservative && !maj.rule) {
-        switch(u2pd,
-            "rand" = udag2pdag(skel),
-            "retry" = udag2pdagSpecial(skel)$pcObj,
-            "relaxed" = udag2pdagRelaxed(skel, verbose = verbose)
-        )
+        switch (u2pd,
+                "rand" = udag2pdag(skel),
+                "retry" = udag2pdagSpecial(skel)$pcObj,
+                "relaxed" = udag2pdagRelaxed(skel, verbose = verbose, solve.confl = solve.confl))
     } else { ## u2pd "relaxed" : conservative _or_ maj.rule
 
         ## version.unf defined per default
         ## Tetrad CPC works with version.unf=c(2,1)
         ## see comment on pc.cons.intern for description of version.unf
         pc. <- pc.cons.intern(skel, suffStat, indepTest, alpha,
-            version.unf = c(2, 1), maj.rule = maj.rule, verbose = verbose
-        )
-        udag2pdagRelaxed(pc.$sk,
-            verbose = verbose,
-            unfVect = pc.$unfTripl
-        )
+                            version.unf = c(2,1), maj.rule = maj.rule, verbose = verbose)
+        udag2pdagRelaxed(pc.$sk, verbose = verbose,
+                        unfVect = pc.$unfTripl, solve.confl = solve.confl)
     }
-}
+} ## {pc}
 
 cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, NAdelete = TRUE, verbose = FALSE) {
     cl <- match.call()
@@ -96,23 +92,23 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     n <- suffStat$n
     m <- suffStat$m
     threshold <- rep(alpha, number_of_levels) # Simplified threshold assignment
-    C_array <- suffStat$C  
+    C_array <- suffStat$C
     C_vector <- as.vector(C_array)
-    
+
     # Initialize adjacency matrix G
     G <- matrix(TRUE, nrow = p, ncol = p)
     diag(G) <- FALSE
     ord <- 0
     done <- TRUE
-    G <- G * 1  # Convert logical to integer
-    
+    G <- G * 1 # Convert logical to integer
+
     # Determine maximum levels
     if (m.max == Inf) {
         max_level <- 14
     } else {
         max_level <- m.max
     }
-    
+
     sepsetMatrix <- matrix(-1, nrow = p * p, ncol = 14)
     dyn.load("SkeletonMI.so")
 
@@ -156,7 +152,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     } else {
         # TODO: Update sepset for more than 14 level
     }
-    #print(ord)
+    # print(ord)
     ## transform matrix to graph object :
     Gobject <-
         if (sum(G) == 0) {
@@ -178,20 +174,20 @@ getSuffCU <- function(X) {
     if (!(mice::is.mids(X) || is.list(X))) {
         stop("Data is neither a list nor a mids object.")
     }
-    
+
     if (inherits(X, "mids")) {
         X <- mice::complete(X, action = "all")
         if (any(sapply(X, is.factor))) {
             stop("Data must be all numeric.")
         }
     }
-    
+
     C_list <- lapply(X, cor)
     p <- ncol(X[[1]])
     m <- length(C_list)
-    
+
     C_array <- array(0, dim = c(p, p, m))
-    
+
     for (i in 1:m) {
         C_array[, , i] <- C_list[[i]]
     }
@@ -200,4 +196,3 @@ getSuffCU <- function(X) {
     C_array[is.na(C_array)] <- 0.0
     return(list(C = C_array, n = nrow(X[[1]]), m = m))
 }
-

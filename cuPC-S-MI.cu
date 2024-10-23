@@ -265,21 +265,18 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
         // Compute degrees of freedom df
         double temp;
         double df;
-        double p_val;
-        // to do
-        if (B > 0){
-            temp = (W / B) * (M / (M + 1.0));
-            df = (M - 1) * (1.0 + temp) * (1.0 + temp);
-            p_val = 2.0 * (1.0 - pt(ts, df)); 
-        }
-        else{
-            p_val = 0;
-        }
-
-        // Compute p-value using the cumulative t-distribution function
         
-        printf("avgz: %f, W: %f, B: %f, TV: %f, ts: %f, df: %f, p_val: %f\n", avgz, W, B, TV, ts, df, p_val);
-        if (p_val < alpha) {
+        if (B > 1e-10){
+            temp = (W / B) * (M / (M + 1.0));
+            df = (M - 1) * (1.0 + temp) * (1.0 + temp); 
+        }
+        else {
+            df = INFINITY ;
+        }
+        double p_val = 2.0 * (1.0 - pt(ts, df));
+        
+        // Compute p-value using the cumulative t-distribution function
+        if (p_val >= alpha) {
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;

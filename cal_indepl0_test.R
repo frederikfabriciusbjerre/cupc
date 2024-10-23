@@ -40,8 +40,7 @@ gaussMItest <- function (x, y, S, suffStat) {
   
   # 7. pvalue
   pvalue <- 2 * stats::pt(abs(ts), df = df, lower.tail = FALSE)
-  #print(pvalue)
-  cat(sprintf("avgz: %f, W: %f, B: %f, TV: %f, ts: %f, df: %f, p_val: %f\n", avgz, W, B, TV, ts, df, pvalue))
+  #cat(sprintf("avgz: %f, W: %f, B: %f, TV: %f, ts: %f, df: %f, p_val: %f\n", avgz, W, B, TV, ts, df, pvalue))
   return(pvalue)
 }
 zStatMI <- function (x, y, S, C, n)
@@ -56,7 +55,7 @@ zStatMI <- function (x, y, S, C, n)
 log_q1pm <- function(r) log1p(2 * r / (1 - r))
 
 set.seed(1)
-p <- 5
+p <- 10
 prob_dag <- 0.55
 n <- 1000
 alpha <- 0.01
@@ -70,23 +69,23 @@ data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3)
 suffStatMI <- getSuff(list(data, data, data)) #hardcoded n=1000
 suffStatMICD <- micd::getSuff(list(data, data, data), test="gaussMItest")
 suffStat <- list(C = cor(data), n = nrow(data))
-cat("\n")
-tic()
-cuPC_fit <- cu_pc(suffStat, p = p, alpha = alpha, m.max = 0)
-print("the total time consumed by cuPC is:")
-toc()
-cat("\n")
-#cat("cuPC\n")
-#print(cuPC_fit)
-cat("\n")
+# cat("\n")
+# tic()
+# cuPC_fit <- cu_pc(suffStat, p = p, alpha = alpha, m.max = 0)
+# print("the total time consumed by cuPC is:")
+# toc()
+# cat("\n")
+# cat("cuPC\n")
+# print(cuPC_fit)
+# cat("\n")
 
 tic()
 micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, m.max = 0)
 print("the total time consumed by micd_PC is:")
 toc()
 cat("\n")
-#cat("micd_PC\n")
-#print(micd_PC)
+cat("micd_PC\n")
+print(micd_PC)
 cat("\n")
 
 tic()
@@ -94,7 +93,7 @@ cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = 0)
 print("The total time consumed by cuPCMI is:")
 toc()
 cat("\n")
-#cat("cuPCMI\n")
-#print(cuPCMI_fit)
+cat("cuPCMI\n")
+print(cuPCMI_fit)
 cat("\n")
-system("R")
+#system("R")

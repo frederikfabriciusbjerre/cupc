@@ -188,15 +188,15 @@ getSuff <- function(X) {
     
     C_list <- lapply(X, stats::cor)
     #hardcored
-    n <- 1000 #ifelse(mice::is.mids(X), nrow(X$data), nrow(X[[1]]))
+    p <- ncol(X[[1]]) #ifelse(mice::is.mids(X), nrow(X$data), nrow(X[[1]]))
     m <- length(C_list)           # Number of imputations
     
-    C_array <- array(0, dim = c(n, n, m))
+    C_array <- array(0, dim = c(p, p, m))
     
     for (i in 1:m) {
         C_array[, , i] <- t(C_list[[i]])
     }
     
-    return(list(C = C_array, n = n, m = m))
+    return(list(C = C_array, n = nrow(X[[1]]), m = m))
 }
 

@@ -64,9 +64,10 @@ __device__ double betai(double a, double b, double x) {
 
 // Device function to compute the CDF of the Student's t-distribution
 __device__ double pt(double t, double df) {
-    //if(isinf(df)){
-	//    return pnorm(x, 0.0, 1.0, lower_tail, log_p); // use cudas own 
-    //}
+    if (isinf(df)) {
+        // Use the standard normal distribution CDF for infinite degrees of freedom
+        return 0.5 * (1.0 + erf(t / sqrt(2.0)));  
+    }
     double x = df / (df + t * t);
     double a = df / 2.0;
     double b = 0.5;

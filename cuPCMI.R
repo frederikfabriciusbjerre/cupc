@@ -195,6 +195,7 @@ getSuffCU <- function(X) {
     for (i in 1:m) {
         C_array[, , i] <- C_list[[i]]
     }
+    # potentially problematic, but I don't think so
     # replace NA with 0.0, this is how it is handled in pcalg package
     C_array[is.na(C_array)] <- 0.0
     return(list(C = C_array, n = nrow(X[[1]]), m = m))

@@ -6,8 +6,8 @@
 
 // Device function to compute the continued fraction for the incomplete beta function
 __device__ double betacf(double a, double b, double x) {
-    const int MAX_ITER = 100;
-    const double EPS = 3.0e-7;
+    const int MAX_ITER = 500;
+    const double EPS = 1.0e-10;
     const double FPMIN = 1.0e-30;
 
     double qab = a + b;
@@ -74,8 +74,12 @@ __device__ double pt(double t, double df) {
 
     double ibeta = betai(a, b, x);
 
-    // Compute the CDF
-    double cdf = 0.5 * (1.0 + (t > 0 ? 1.0 : -1.0) * (1.0 - ibeta));
+    double cdf;
+    if (t >= 0) {
+        cdf = 1.0 - 0.5 * ibeta;
+    } else {
+        cdf = 0.5 * ibeta;
+    }
 
     return cdf;
 }

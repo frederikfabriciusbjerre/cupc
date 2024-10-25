@@ -40,7 +40,7 @@ __device__ double compute_MI_p_value(const double* z_m, int M, int nrows, int or
     }
 
     // return p-value
-    return 2.0 * (1.0 - pt(ts, df));
+    return 2.0 * (1.0 - pt(abs(ts), df));
 }
 
 #endif // CALC_STATISTICS_CUH

@@ -134,7 +134,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     if (ord <= 14) {
     sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 14, ncol = p^2))
     index_of_cuted_edge <- which(rowSums(sepsetMatrix != -1) > 0)
-    print(index_of_cuted_edge)
+    #print(index_of_cuted_edge)
     for (i in index_of_cuted_edge) {
         edge_idx <- i - 1  # Adjust for R's 1-based indexing
         x <- (edge_idx %% p) + 1

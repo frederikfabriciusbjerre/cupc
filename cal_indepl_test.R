@@ -4,6 +4,7 @@ library(MASS)
 library(tictoc)
 library(igraph)
 library(mice)
+#library(tidyverse)
 #library(micd)
 
 source("cuPC.R")
@@ -99,20 +100,19 @@ cat("\n")
 cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
-# shdSkeleton <- function(fit1, fit2){
-#   graph1 <- fit1 %>% getGraph() %>% ugraph()
-#   graph2 <- fit2 %>% getGraph() %>% ugraph()
-#   return (shd(graph1, graph2))
+shdSkeleton <- function(fit1, fit2){
+  graph1 <- fit1 %>% getGraph() %>% ugraph()
+  graph2 <- fit2 %>% getGraph() %>% ugraph()
+  return (shd(graph1, graph2))
+}
+cat("Hamming Distance =", shdSkeleton(micd_PC, cuPCMI_fit), "\n")
+
+# if (require(Rgraphviz)) {
+#   ## show estimated CPDAG
+#   par(mfrow = c(1, 2))
+#   plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
+#   plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
 # }
-# shdSkeleton(micd_PC, cuPCMI_fit)
-# cuPCMI_fit@sepset
-# micd_PC@sepset
-# # if (require(Rgraphviz)) {
-# #   ## show estimated CPDAG
-# #   par(mfrow = c(1, 2))
-# #   plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
-# #   plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
-# # }
 
 
 

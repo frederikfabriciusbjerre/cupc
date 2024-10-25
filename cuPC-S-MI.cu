@@ -740,14 +740,11 @@ __global__ void cal_Indepl3(
                 YIdx = G_Chunk[d2];
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
-                    z_sum = 0.0
+                    z_sum = 0.0;
 
                     // Loop over all M imputations
                     for (int m = 0; m < M; m++) {
 
-                        int C_index_Y_NbrIdx0 = m * n * n + YIdx * n + NbrIdx[0];
-                        int C_index_Y_NbrIdx1 = m * n * n + YIdx * n + NbrIdx[1];
-                        int C_index_NbrIdx0_NbrIdx1 = m * n * n + NbrIdx[0] * n + NbrIdx[1];
                         M0_m = C[m * n * n + XIdx * n + YIdx];
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
@@ -791,7 +788,7 @@ __global__ void cal_Indepl3(
                         
                         // compute H matrix
                         H[0][0]   = 1  - H[0][0];
-                        H[0][1]   = M0 - H[0][1];
+                        H[0][1]   = M0_m - H[0][1];
                         H[1][1]   = 1  - H[1][1];
 
                         // compute partial correlation
@@ -837,7 +834,7 @@ __global__ void cal_Indepl3(
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock                        
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            pMax[XIdx * n + YIdx] = Z;
+                            pMax[XIdx * n + YIdx] = p_val;
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];

@@ -3144,15 +3144,7 @@ __device__ void pseudoinversel4(double M2[][4], double M2Inv[][4], double v[][4]
     int flag, its,i, j, jj, k, l, nm;
     double c, f, h, s, x, y, z;
     double anorm = 0.0, g = 0.0, scale = 0.0;
-
-    for (int i = 0; i < 4; i++) {
-        rv1[i] = 0.0;
-        w[i] = 0.0;
-        for (int j = 0; j < 4; j++) {
-            v[i][j] = 0.0;
-            res1[i][j] = 0.0;
-        }
-    }
+    
     /* Householder reduction to bidiagonal form */
     for (i = 0; i < m; i++)
     {

@@ -88,4 +88,4 @@ df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 cat("Hamming Distance =", shdSkeleton(micd_PC, cuPCMI_fit), "\n")
 
-#system("R")
+system("R")

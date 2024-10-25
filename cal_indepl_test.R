@@ -55,7 +55,7 @@ zStatMI <- function (x, y, S, C, n)
 
 log_q1pm <- function(r) log1p(2 * r / (1 - r))
 
-set.seed(12)
+set.seed(9)
 p <- 17
 prob_dag <- 0.55
 prob_miss <- 0.25
@@ -200,4 +200,4 @@ df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 #print(df_values_indices)
 
 #sepset1
-system("R")
+#system("R")

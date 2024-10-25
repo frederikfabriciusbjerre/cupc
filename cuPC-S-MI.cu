@@ -4,7 +4,7 @@
 
 #include "gpuerrors.h"
 #include "cuPC-S-MI.h"
-#include "pt.cuh"
+#include "MI-p-val.cuh"
 
 //========================> Main Function Parameter <========================
 //Description : this function just calculate one Stage of PC stable algorithm
@@ -317,12 +317,12 @@ __global__ void cal_Indepl1(
 
     // Variables for multiple imputations
     double z_m[MAX_M];          // Z values for each imputation
-    double z_sum;
     double M0_m;
     double M1[2];               // M1[0] and M1[1]
     double H[2][2];             // H matrix
     double rho_m;
-    double avgz, W, B, TV, ts, df, p_val;
+    double p_val;
+    int ord = 1;
 
     // Initialize flags and neighbor sizes
     NoEdgeFlag = 0;
@@ -373,18 +373,12 @@ __global__ void cal_Indepl1(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    z_sum = 0.0;
                     // Loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute indices into the flattened C array
-                        int C_index_X_NbrIdx = m * n * n + XIdx * n + NbrIdx;
-                        int C_index_X_YIdx   = m * n * n + XIdx * n + YIdx;
-                        int C_index_Y_NbrIdx = m * n * n + YIdx * n + NbrIdx;
-                        
                         // Retrieve correlation coefficients for this imputation
-                        M1[0] = C[C_index_X_NbrIdx];  // C[XIdx][NbrIdx][m]
-                        M0_m   = C[C_index_X_YIdx];    // C[XIdx][YIdx][m]
-                        M1[1] = C[C_index_Y_NbrIdx];  // C[YIdx][NbrIdx][m]
+                        M1[0] = C[m * n * n + XIdx * n + NbrIdx];  // C[XIdx][NbrIdx][m]
+                        M0_m  = C[m * n * n + XIdx * n + YIdx];    // C[XIdx][YIdx][m]
+                        M1[1] = C[m * n * n + YIdx * n + NbrIdx];  // C[YIdx][NbrIdx][m]
 
                         // Compute elements of the H matrix
                         H[0][0] = 1.0  - (M1[0] * M1[0]);
@@ -397,40 +391,9 @@ __global__ void cal_Indepl1(
                         // Compute Fisher's Z-transformation
                         double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
                         z_m[m] = Z_m;
-                        z_sum += Z_m;
                     }
 
-                    // Compute average z-value across imputations
-                    avgz = z_sum / M;
-                    // printf("%f\n", avgz);
-                    // Compute within-imputation variance W
-                    // Adjusted for conditioning set size (1)
-                    W = 1.0 / (nrows - 3 - 1);
-
-                    // Compute between-imputation variance B
-                    double B_sum = 0.0;
-                    for (int m = 0; m < M; m++) {
-                        double diff = z_m[m] - avgz;
-                        B_sum += diff * diff;
-                    }
-                    B = B_sum / (M - 1);
-
-                    // Compute total variance TV
-                    TV = W + (1.0 + 1.0 / M) * B;
-
-                    // Compute test statistic ts
-                    ts = avgz / sqrt(TV);
-
-                    // Compute degrees of freedom df
-                    if (B > 1e-10) {
-                        double temp = (W / B) * (M / (M + 1.0));
-                        df = (M - 1) * (1.0 + temp) * (1.0 + temp);
-                    } else {
-                        df = INFINITY;
-                    }
-
-                    // Compute p-value using the cumulative t-distribution function
-                    p_val = 2.0 * (1.0 - pt(ts, df));
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
                     // Compare p-value with alpha and update G accordingly
                     if (p_val >= alpha) {
@@ -477,7 +440,6 @@ __global__ void cal_Indepl2(
 
     // Variables for multiple imputations
     double z_m[MAX_M];          // Z values for each imputation
-    double z_sum;
     double M0_m;
     double M1[2][2];           // M1 matrix
     double M2[2][2];           // M2 matrix
@@ -485,7 +447,8 @@ __global__ void cal_Indepl2(
     double M1MulM2Inv[2][2];   // Product of M1 and M2Inv
     double H[2][2];            // H matrix
     double rho_m;
-    double avgz, W, B, TV, ts, df, p_val;
+    double p_val;
+    int ord = 2;
 
     // Initialize flags and neighbor sizes
     NoEdgeFlag = 0;
@@ -547,27 +510,19 @@ __global__ void cal_Indepl2(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    z_sum = 0.0;
                     // Loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute indices into the flattened C array
-                        int C_index_X_YIdx   = m * n * n + XIdx * n + YIdx;
-                        int C_index_X_NbrIdx0 = m * n * n + XIdx * n + NbrIdx[0];
-                        int C_index_X_NbrIdx1 = m * n * n + XIdx * n + NbrIdx[1];
-                        int C_index_Y_NbrIdx0 = m * n * n + YIdx * n + NbrIdx[0];
-                        int C_index_Y_NbrIdx1 = m * n * n + YIdx * n + NbrIdx[1];
-                        int C_index_NbrIdx0_NbrIdx1 = m * n * n + NbrIdx[0] * n + NbrIdx[1];
 
                         // Retrieve correlation coefficients for this imputation
-                        M0_m = C[C_index_X_YIdx]; // C[XIdx][YIdx][m]
-                        M1[0][0] = C[C_index_X_NbrIdx0]; // C[XIdx][NbrIdx[0]][m]
-                        M1[0][1] = C[C_index_X_NbrIdx1]; // C[XIdx][NbrIdx[1]][m]
-                        M1[1][0] = C[C_index_Y_NbrIdx0]; // C[YIdx][NbrIdx[0]][m]
-                        M1[1][1] = C[C_index_Y_NbrIdx1]; // C[YIdx][NbrIdx[1]][m]
+                        M0_m = C[m * n * n + XIdx * n + YIdx]; // C[XIdx][YIdx][m]
+                        M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]]; // C[XIdx][NbrIdx[0]][m]
+                        M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]]; // C[XIdx][NbrIdx[1]][m]
+                        M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]]; // C[YIdx][NbrIdx[0]][m]
+                        M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]]; // C[YIdx][NbrIdx[1]][m]
 
                         // Update M2 matrix with current imputation
                         M2[0][0] = 1.0;
-                        M2[0][1] = C[C_index_NbrIdx0_NbrIdx1]; // C[NbrIdx[0]][NbrIdx[1]][m]
+                        M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]]; // C[NbrIdx[0]][NbrIdx[1]][m]
                         M2[1][0] = M2[0][1];
                         M2[1][1] = 1.0;
 
@@ -595,40 +550,9 @@ __global__ void cal_Indepl2(
                         // Compute Fisher's Z-transformation
                         double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
                         z_m[m] = Z_m;
-                        z_sum += Z_m;
                     }
 
-                    // Compute average z-value across imputations
-                    avgz = z_sum / M;
-
-                    // Compute within-imputation variance W
-                    // Adjusted for conditioning set size (2 variables)
-                    W = 1.0 / (nrows - 3 - 2);
-
-                    // Compute between-imputation variance B
-                    double B_sum = 0.0;
-                    for (int m = 0; m < M; m++) {
-                        double diff = z_m[m] - avgz;
-                        B_sum += diff * diff;
-                    }
-                    B = B_sum / (M - 1);
-
-                    // Compute total variance TV
-                    TV = W + (1.0 + 1.0 / M) * B;
-
-                    // Compute test statistic ts
-                    ts = avgz / sqrt(TV);
-
-                    // Compute degrees of freedom df
-                    if (B > 1e-10) {
-                        double temp = (W / B) * (M / (M + 1.0));
-                        df = (M - 1) * (1.0 + temp) * (1.0 + temp);
-                    } else {
-                        df = INFINITY;
-                    }
-
-                    // Compute p-value using the cumulative t-distribution function
-                    p_val = 2.0 * (1.0 - pt(ts, df));
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
                     // Compare p-value with alpha and update G accordingly
                     if (p_val >= alpha) {
@@ -675,7 +599,6 @@ __global__ void cal_Indepl3(
 
     // Variables for multiple imputations
     double z_m[MAX_M];          // Z values for each imputation
-    double z_sum;
     double M0_m;
     double M1[2][3];           // M1 matrix
     double M2[3][3];           // M2 matrix
@@ -683,7 +606,8 @@ __global__ void cal_Indepl3(
     double M1MulM2Inv[2][3];   // Product of M1 and M2Inv
     double H[2][2];            // H matrix
     double rho_m;
-    double avgz, W, B, TV, ts, df, p_val;
+    double p_val;
+    int ord = 3;
 
     NoEdgeFlag = 0;
     SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbours for node X
@@ -740,7 +664,6 @@ __global__ void cal_Indepl3(
                 YIdx = G_Chunk[d2];
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
-                    z_sum = 0.0;
 
                     // Loop over all M imputations
                     for (int m = 0; m < M; m++) {
@@ -795,40 +718,9 @@ __global__ void cal_Indepl3(
                         rho_m     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
                         double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
                         z_m[m] = Z_m;
-                        z_sum += Z_m;
                     }
                     
-                    // Compute average z-value across imputations
-                    avgz = z_sum / M;
-
-                    // Compute within-imputation variance W
-                    // Adjusted for conditioning set size (2 variables)
-                    W = 1.0 / (nrows - 3 - 2);
-
-                    // Compute between-imputation variance B
-                    double B_sum = 0.0;
-                    for (int m = 0; m < M; m++) {
-                        double diff = z_m[m] - avgz;
-                        B_sum += diff * diff;
-                    }
-                    B = B_sum / (M - 1);
-
-                    // Compute total variance TV
-                    TV = W + (1.0 + 1.0 / M) * B;
-
-                    // Compute test statistic ts
-                    ts = avgz / sqrt(TV);
-
-                    // Compute degrees of freedom df
-                    if (B > 1e-10) {
-                        double temp = (W / B) * (M / (M + 1.0));
-                        df = (M - 1) * (1.0 + temp) * (1.0 + temp);
-                    } else {
-                        df = INFINITY;
-                    }
-
-                    // Compute p-value using the cumulative t-distribution function
-                    p_val = 2.0 * (1.0 - pt(ts, df));
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock                        
@@ -859,30 +751,33 @@ __global__ void cal_Indepl4(
     int M            // Number of imputations (imputed datasets)
 )
 {
+    // Variable declarations
     int YIdx;
-    int XIdx = by;
+    int XIdx = by;              // Index of variable X (current node)
     int NbrIdxPointer[4];
+    int NbrIdx[4];
     int SizeOfArr;
     int NumberOfJump;
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    int NbrIdx[4];
+    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
 
-    double M0;
-    double M1[2][4];
-    double M2[4][4];
-    double M2Inv[4][4];
-    double M1MulM2Inv[2][4];
-    double H[2][2];
-    double rho;
-    double Z;
+    // Variables for multiple imputations
+    double z_m[MAX_M];          // Z values for each imputation
+    double M0_m;
+    double M1[2][4];           // M1 matrix
+    double M2[4][4];           // M2 matrix
+    double M2Inv[4][4];        // Inverse of M2
+    double M1MulM2Inv[2][4];   // Product of M1 and M2Inv
+    double H[2][2];            // H matrix
+    double rho_m;
+    double p_val;
+    int ord = 4;
 
     double v[4][4];
     double w[4], rv1[4];
     double res1[4][4];
-    //Lock WriteSepSetLock;
-    extern __shared__ int G_Chunk[];
 
     NoEdgeFlag = 0;
     SizeOfArr = GPrime[XIdx * n + n - 1];
@@ -925,32 +820,8 @@ __global__ void cal_Indepl4(
             NbrIdx[1] = G_Chunk[NbrIdxPointer[1] - 1];
             NbrIdx[2] = G_Chunk[NbrIdxPointer[2] - 1];
             NbrIdx[3] = G_Chunk[NbrIdxPointer[3] - 1];
-
-            M2[0][0] = 1;
-            M2[0][1] = C[ NbrIdx[0]  * n + NbrIdx[1] ];
-            M2[0][2] = C[ NbrIdx[0]  * n + NbrIdx[2] ];
-            M2[0][3] = C[ NbrIdx[0]  * n + NbrIdx[3] ];
-
-            M2[1][0] = M2[0][1];
-            M2[1][1] = 1;
-            M2[1][2] = C[ NbrIdx[1]  * n + NbrIdx[2] ];
-            M2[1][3] = C[ NbrIdx[1]  * n + NbrIdx[3] ];
-
-            M2[2][0] = M2[0][2];
-            M2[2][1] = M2[1][2];
-            M2[2][2] = 1;
-            M2[2][3] = C[ NbrIdx[2]  * n + NbrIdx[3] ];
-
-            M2[3][0] = M2[0][3];
-            M2[3][1] = M2[1][3];
-            M2[3][2] = M2[2][3];
-            M2[3][3] = 1;
-
-            M1[0][0] = C[ XIdx  * n + NbrIdx[0] ];
-            M1[0][1] = C[ XIdx  * n + NbrIdx[1] ];
-            M1[0][2] = C[ XIdx  * n + NbrIdx[2] ];
-            M1[0][3] = C[ XIdx  * n + NbrIdx[3] ];
-            pseudoinversel4(M2, M2Inv, v, rv1, w, res1 );
+            
+            // loop over other nieghbours
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || (d2 == (NbrIdxPointer[2] - 1))
                  || (d2 == (NbrIdxPointer[3] - 1))){
@@ -959,44 +830,79 @@ __global__ void cal_Indepl4(
                 YIdx = G_Chunk[d2];
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
-                    M0 = C[XIdx * n + YIdx]; 
 
-                    M1[1][0] = C[ YIdx  * n + NbrIdx[0] ];
-                    M1[1][1] = C[ YIdx  * n + NbrIdx[1] ];
-                    M1[1][2] = C[ YIdx  * n + NbrIdx[2] ];
-                    M1[1][3] = C[ YIdx  * n + NbrIdx[3] ];
-                    //Begin to calculate I2Inv Using pseudo-inverse
-                    for (int c1 = 0; c1 < 2; c1++)
-                    {
-                        for (int c2 = 0; c2 < 4; c2++)
+                    for (int m = 0; m < M; m++) {
+                        M0_m = C[XIdx * n + YIdx]; 
+                        M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
+                        M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
+                        M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
+                        M1[0][3] = C[m * n * n + XIdx * n + NbrIdx[3]];
+                        M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]];
+                        M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]];
+                        M1[1][2] = C[m * n * n + YIdx * n + NbrIdx[2]];
+                        M1[1][3] = C[m * n * n + YIdx * n + NbrIdx[3]];
+
+                        M2[0][0] = 1.0;
+                        M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
+                        M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
+                        M2[0][3] = C[m * n * n + NbrIdx[0] * n + NbrIdx[3]];
+            
+                        M2[1][0] = M2[0][1];
+                        M2[1][1] = 1.0;
+                        M2[1][2] = C[m * n * n + NbrIdx[1] * n + NbrIdx[2]];
+                        M2[1][3] = C[m * n * n + NbrIdx[1] * n + NbrIdx[3]];
+            
+                        M2[2][0] = M2[0][2];
+                        M2[2][1] = M2[1][2];
+                        M2[2][2] = 1.0;
+                        M2[2][3] = C[m * n * n + NbrIdx[2] * n + NbrIdx[3]];
+            
+                        M2[3][0] = M2[0][3];
+                        M2[3][1] = M2[1][3];
+                        M2[3][2] = M2[2][3];
+                        M2[3][3] = 1.0;
+                        
+                        pseudoinversel4(M2, M2Inv, v, rv1, w, res1);
+                        
+                        // Begin to calculate I2Inv Using pseudo-inverse
+                        for (int c1 = 0; c1 < 2; c1++)
                         {
-                            M1MulM2Inv[c1][c2] = 0;
-                            for (int c3 = 0; c3 < 4; c3++)
-                                M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            for (int c2 = 0; c2 < 4; c2++)
+                            {
+                                M1MulM2Inv[c1][c2] = 0;
+                                for (int c3 = 0; c3 < 4; c3++)
+                                    M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            }
                         }
+    
+                        for (int c1 = 0; c1 < 2; c1++)
+                        {
+                            for (int c2 = 0; c2 < 2; c2++)
+                            {
+                                H[c1][c2] = 0;
+                                for (int c3 = 0; c3 < 4; c3++)
+                                    H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
+                            }
+                        }
+
+                        // compute H matrix
+                        H[0][0]   = 1  - H[0][0];
+                        H[0][1]   = M0_m - H[0][1];
+                        H[1][1]   = 1  - H[1][1];
+
+                        // compute partial correlation
+                        rho_m     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
+                        double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
+                        z_m[m] = Z_m;
                     }
 
-                    for (int c1 = 0; c1 < 2; c1++)
-                    {
-                        for (int c2 = 0; c2 < 2; c2++)
-                        {
-                            H[c1][c2] = 0;
-                            for (int c3 = 0; c3 < 4; c3++)
-                                H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
-                        }
-                    }
-                    H[0][0]   = 1  - H[0][0];
-                    H[0][1]   = M0 - H[0][1];
-                    H[1][1]   = 1  - H[1][1];
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
-                    rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
-
-                    if (Z < alpha){
+                    if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            pMax[XIdx * n + YIdx] = Z;
+                            pMax[XIdx * n + YIdx] = p_val;
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];

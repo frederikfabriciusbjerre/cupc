@@ -60,7 +60,7 @@ prob_dag <- 0.55
 prob_miss <- 0.25
 n <- 1000
 alpha <- 0.1
-max_order <- 2
+max_order <- 3
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -197,6 +197,7 @@ sepset2 <- micd_PC@sepset     # Replace with your second sepset
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # Print the dataframe
-print(df_values_indices)
+#print(df_values_indices)
 
 #sepset1
+system("R")

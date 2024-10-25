@@ -111,74 +111,74 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL3, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL3, 1, 1);
                 // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
-                cal_Indepl3 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl3 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
             }
             else if(*l == 4){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL4, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL4, 1, 1);
-                cal_Indepl4 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl4 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 5){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL5, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL5, 1, 1);
-                cal_Indepl5 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl5 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 6){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL6, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL6, 1, 1);
-                cal_Indepl6 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl6 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 7){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL7, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL7, 1, 1);
-                cal_Indepl7 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl7 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 8){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL8, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL8, 1, 1);
-                cal_Indepl8 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl8 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 9){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL9, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL9, 1, 1);
-                cal_Indepl9 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl9 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 10){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL10, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL10, 1, 1);
-                cal_Indepl10 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl10 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 11){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL11, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL11, 1, 1);
-                cal_Indepl11 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl11 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 12){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL12, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL12, 1, 1);
-                cal_Indepl12 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl12 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 13){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL13, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL13, 1, 1);
-                cal_Indepl13 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl13 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else if(*l == 14){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL14, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL14, 1, 1);
-                cal_Indepl14 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda,n, alpha);
+                cal_Indepl14 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             } else{
                 //TODO: add PC serial
@@ -849,7 +849,18 @@ __global__ void cal_Indepl3(
     }
 }
 
-__global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl4(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int YIdx;
     int XIdx = by;
@@ -1002,7 +1013,18 @@ __global__ void cal_Indepl4(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl5(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int YIdx;
     int XIdx = by;
@@ -1169,7 +1191,18 @@ __global__ void cal_Indepl5(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl6(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int YIdx;
     int XIdx = by;
@@ -1352,7 +1385,18 @@ __global__ void cal_Indepl6(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl7(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int YIdx;
     int XIdx = by;
@@ -1556,7 +1600,18 @@ __global__ void cal_Indepl7(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl8(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int YIdx;
     int XIdx = by;
@@ -1778,7 +1833,18 @@ __global__ void cal_Indepl8(double *C, int *G, int* GPrime, int *mutex, int* Sep
 }
 
 
-__global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl9(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int YIdx;
     int XIdx = by;
@@ -1930,7 +1996,18 @@ __global__ void cal_Indepl9(double *C, int *G, int* GPrime, int *mutex, int* Sep
     }
 }
 
-__global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl10(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     
     int YIdx;
@@ -2086,7 +2163,18 @@ __global__ void cal_Indepl10(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl11(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     
     int YIdx;
@@ -2243,7 +2331,18 @@ __global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl12(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     
     int YIdx;
@@ -2401,7 +2500,18 @@ __global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl13(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     
     int YIdx;
@@ -2561,7 +2671,18 @@ __global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Se
     }
 }
 
-__global__ void cal_Indepl14(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, int n, double alpha)
+__global__ void cal_Indepl14(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     
     int YIdx;

@@ -14,9 +14,9 @@ set.seed(9)
 p <- 22
 prob_dag <- 0.55
 prob_miss <- 0.25
-n <- 10000
+n <- 3000
 alpha <- 0.1
-max_order <- 4
+max_order <- 5
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -40,23 +40,26 @@ suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 tic()
 micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, skel.method = "stable",
  m.max = max_order)
-# print("The total time consumed by micd_PC is:")
+print("The total time consumed by micd_PC is:")
 toc()
-# cat("\n")
-# cat("micd_PC\n")
-# print(micd_PC)
-# cat("\n")
+cat("\n")
+cat("micd_PC\n")
+print(micd_PC)
+cat("\n")
 
 print(micd_PC@max.ord)
 
 tic()
 cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
-# print("The total time consumed by cuPCMI is:")
+print("The total time consumed by cuPCMI is:")
 toc()
-# cat("\n")
-# cat("cuPCMI\n")
-# print(cuPCMI_fit)
-# cat("\n")
+cat("\n")
+cat("cuPCMI\n")
+print(cuPCMI_fit)
+cat("\n")
+
+cat("micdPC ord:", micd_PC@max.ord)
+cat(micd_PC@max.ord)
 shdSkeleton <- function(fit1, fit2){
   graph1 <- fit1 %>% getGraph() %>% ugraph()
   graph2 <- fit2 %>% getGraph() %>% ugraph()
@@ -86,6 +89,7 @@ df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 
-cat("Hamming Distance =", shdSkeleton(micd_PC, cuPCMI_fit), "\n")
+cat("Hamming Distance            =", shdSkeleton(micd_PC, cuPCMI_fit), "\n")
+cat("Structural Hamming Distance =", shd(micd_PC, cuPCMI_fit), "\n")
 
-system("R")
+#system("R")

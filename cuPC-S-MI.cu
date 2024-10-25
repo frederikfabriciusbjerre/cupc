@@ -925,50 +925,6 @@ __global__ void cal_Indepl4(
 
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            printf("z_m values: ");
-                            for (int m = 0; m < M; m++) {
-                                printf("%f ", z_m[m]);
-                            }
-                            printf("\n");
-                            
-                            double z_sum = 0.0;
-                            for (int m = 0; m < M; m++) {
-                                if (isnan(z_m[m])){
-                                    z_sum += 0;
-                                }
-                                else{
-                                    z_sum += z_m[m];
-                                }
-                            }
-                            double avgz = z_sum / M;
-                        
-                            // calculate within-imputation variance
-                            double W = 1.0 / (nrows - 3 - ord);
-                        
-                            // calculate between-imputation variance
-                            double B_sum = 0.0;
-                            for (int m = 0; m < M; m++) {
-                                double diff = z_m[m] - avgz;
-                                B_sum += diff * diff;
-                            }
-                            double B = B_sum / (M - 1);
-                        
-                            // calculate total variance
-                            double TV = W + (1.0 + 1.0 / M) * B;
-                        
-                            // calculate test stat
-                            double ts = avgz / sqrt(TV);
-                        
-                            // calculate degrees of freedom
-                            double df;
-                            if (B > 1e-10) {
-                                double temp = (W / B) * (M / (M + 1.0));
-                                df = (M - 1) * (1.0 + temp) * (1.0 + temp);
-                            } else {
-                                df = INFINITY;
-                            }
-                            double p2 = 2.0 * (1.0 - pt(abs(ts), df));
-                            printf("avgz: %f, W: %f, B: %f, TV: %f, ts: %f, df: %f, p: %f\n\n", avgz, W, B, TV, ts, df, p2);
                             // Remove the edge between X and Y
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;

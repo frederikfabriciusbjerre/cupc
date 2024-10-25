@@ -81,10 +81,10 @@ sepset2 <- micd_PC@sepset         # Replace with your second sepset
 # Flatten the two sepsets into a dataframe
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
-# Print the dataframe
-#print(df_values_indices)
-source("gaussMItestPrint.R")
-gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
+# # Print the dataframe
+# print(df_values_indices)
+# source("gaussMItestPrint.R")
+# gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 
 cat("Hamming Distance =", shdSkeleton(micd_PC, cuPCMI_fit), "\n")
 

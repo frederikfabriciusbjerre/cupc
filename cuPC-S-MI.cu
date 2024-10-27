@@ -389,7 +389,7 @@ __global__ void cal_Indepl1(
                         rho_m = H[0][1] / (sqrt(abs(H[0][0])) * sqrt(abs(H[1][1])));
 
                         // Compute Fisher's Z-transformation
-                        double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
+                        double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
 
@@ -548,7 +548,7 @@ __global__ void cal_Indepl2(
                         rho_m = H[0][1] / sqrt(abs(H[0][0] * H[1][1]));
 
                         // Compute Fisher's Z-transformation
-                        double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
+                        double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
 
@@ -717,7 +717,7 @@ __global__ void cal_Indepl3(
 
                         // compute partial correlation
                         rho_m     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );
-                        double Z_m = abs(0.5 * log(abs((1.0 + rho_m) / (1.0 - rho_m))));
+                        double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
                     

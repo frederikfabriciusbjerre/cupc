@@ -12,7 +12,7 @@ source("cuPCMI.R")
 
 set.seed(9)
 p <- 22
-prob_dag <- 0.55
+prob_dag <- 0.25
 prob_miss <- 0.1
 n <- 10000
 alpha <- 0.1
@@ -24,8 +24,8 @@ cpdag_true <- dag2cpdag(dag_true)
 print(cpdag_true)
 
 # now scaled
-data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3) %>% scale()
-cor(data)
+data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3) #%>% scale()
+
 # missing at random data 
 data_missing <- ampute(data, prop = prob_miss, 
                         mech = "MAR", 
@@ -85,7 +85,7 @@ sepset2 <- micd_PC@sepset         # Replace with your second sepset
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # # Print the dataframe
-#print(df_values_indices)
+print(df_values_indices)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 

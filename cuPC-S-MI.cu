@@ -1393,7 +1393,7 @@ __global__ void cal_Indepl6(
 
 
 __global__ void cal_Indepl7(
-    double *C,       // Correlation matrices (flattened, size n x n x M)
+    double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
     int *GPrime,     // Neighbor list or compressed adjacency representation
     int *mutex,      // Mutex array for atomic operations (size n x n)
@@ -1405,51 +1405,61 @@ __global__ void cal_Indepl7(
     int M            // Number of imputations (imputed datasets)
 )
 {
+    // Variable declarations
     int YIdx;
-    int XIdx = by;
+    int XIdx = blockIdx.y;      // Index of variable X (current node)
     int NbrIdxPointer[7];
+    int NbrIdx[7];
     int SizeOfArr;
     int NumberOfJump;
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    int NbrIdx[7];
+    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
 
-    double M0;
-    double M1[2][7];
-    double M2[7][7];
-    double M2Inv[7][7];
-    double M1MulM2Inv[2][7];
-    double H[2][2];
-    double rho;
-    double Z;
-    //pseudo-inverse parameter
+    // Variables for multiple imputations
+    double z_m[MAX_M];          // Z values for each imputation
+    double M0_m;
+    double M1[2][7];           // M1 matrix
+    double M2[7][7];           // M2 matrix
+    double M2Inv[7][7];        // Inverse of M2
+    double M1MulM2Inv[2][7];   // Product of M1 and M2Inv
+    double H[2][2];            // H matrix
+    double rho_m;
+    double p_val;
+    int ord = 7;               // Order of the conditioning set
+
+    // Variables for SVD pseudoinverse
     double v[7][7];
     double w[7], rv1[7];
     double res1[7][7];
 
-    extern __shared__ int G_Chunk[];
-
+    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
+
+    // Get the number of neighbors for node X
     SizeOfArr = GPrime[XIdx * n + n - 1];
     if (SizeOfArr <= 7){
         return;
     }
 
+    // Calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL7) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL7;
     }
     else{
         NumberOfJump = SizeOfArr / ParGivenL7 + 1;
     }
-    //Copy Row Xid from GPrime to G_chunck
+
+    // Copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
-        if( ( tx + cnt * ParGivenL7 ) < SizeOfArr){
-            G_Chunk[ tx + cnt * ParGivenL7 ] =  GPrime[ XIdx * n + tx + cnt * ParGivenL7];
+        if( ( threadIdx.x + cnt * ParGivenL7 ) < SizeOfArr){
+            G_Chunk[ threadIdx.x + cnt * ParGivenL7 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL7];
         }
         __syncthreads();
     }
 
+    // Calculate the total number of combinations for the conditioning set
     BINOM(SizeOfArr, 7, &NumOfComb);
     if( (NumOfComb % (ParGivenL7 * NumOfBlockForEachNodeL7)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL7 * NumOfBlockForEachNodeL7);
@@ -1457,142 +1467,165 @@ __global__ void cal_Indepl7(
     else{
         NumOfGivenJump = NumOfComb / (ParGivenL7 * NumOfBlockForEachNodeL7) + 1;
     }
-    
 
+    // Main processing loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
             return;
         }
-        if(tx + bx * ParGivenL7 + d1 * ParGivenL7 * NumOfBlockForEachNodeL7 < NumOfComb){
+        int combIdx = threadIdx.x + blockIdx.x * ParGivenL7 + d1 * ParGivenL7 * NumOfBlockForEachNodeL7;
+        if(combIdx < NumOfComb){
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            IthCombination(NbrIdxPointer, SizeOfArr, 7, tx + bx * ParGivenL7 + d1 * ParGivenL7 * NumOfBlockForEachNodeL7 + 1);
+            // Get indices of the combination
+            IthCombination(NbrIdxPointer, SizeOfArr, 7, combIdx + 1);
             for(int tmp = 0; tmp < 7; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
-            
-            M2[0][0] = 1;
-            M2[0][1] = C[ NbrIdx[0]  * n + NbrIdx[1] ];
-            M2[0][2] = C[ NbrIdx[0]  * n + NbrIdx[2] ];
-            M2[0][3] = C[ NbrIdx[0]  * n + NbrIdx[3] ];
-            M2[0][4] = C[ NbrIdx[0]  * n + NbrIdx[4] ];
-            M2[0][5] = C[ NbrIdx[0]  * n + NbrIdx[5] ];
-            M2[0][6] = C[ NbrIdx[0]  * n + NbrIdx[6] ];
 
-            M2[1][0] = M2[0][1];
-            M2[1][1] = 1;
-            M2[1][2] = C[ NbrIdx[1]  * n + NbrIdx[2] ];
-            M2[1][3] = C[ NbrIdx[1]  * n + NbrIdx[3] ];
-            M2[1][4] = C[ NbrIdx[1]  * n + NbrIdx[4] ];
-            M2[1][5] = C[ NbrIdx[1]  * n + NbrIdx[5] ];
-            M2[1][6] = C[ NbrIdx[1]  * n + NbrIdx[6] ];
-
-            M2[2][0] = M2[0][2];
-            M2[2][1] = M2[1][2];
-            M2[2][2] = 1;
-            M2[2][3] = C[ NbrIdx[2]  * n + NbrIdx[3] ];
-            M2[2][4] = C[ NbrIdx[2]  * n + NbrIdx[4] ];
-            M2[2][5] = C[ NbrIdx[2]  * n + NbrIdx[5] ];
-            M2[2][6] = C[ NbrIdx[2]  * n + NbrIdx[6] ];
-
-            M2[3][0] = M2[0][3];
-            M2[3][1] = M2[1][3];
-            M2[3][2] = M2[2][3];
-            M2[3][3] = 1;
-            M2[3][4] = C[ NbrIdx[3]  * n + NbrIdx[4] ];
-            M2[3][5] = C[ NbrIdx[3]  * n + NbrIdx[5] ];
-            M2[3][6] = C[ NbrIdx[3]  * n + NbrIdx[6] ];
-
-            M2[4][0] = M2[0][4];
-            M2[4][1] = M2[1][4];
-            M2[4][2] = M2[2][4];
-            M2[4][3] = M2[3][4];
-            M2[4][4] = 1;
-            M2[4][5] = C[ NbrIdx[4]  * n + NbrIdx[5] ];
-            M2[4][6] = C[ NbrIdx[4]  * n + NbrIdx[6] ];
-
-
-            M2[5][0] = M2[0][5];
-            M2[5][1] = M2[1][5];
-            M2[5][2] = M2[2][5];
-            M2[5][3] = M2[3][5];
-            M2[5][4] = M2[4][5];
-            M2[5][5] = 1;
-            M2[5][6] = C[ NbrIdx[5]  * n + NbrIdx[6] ];
-
-
-            M2[6][0] = M2[0][6];
-            M2[6][1] = M2[1][6];
-            M2[6][2] = M2[2][6];
-            M2[6][3] = M2[3][6];
-            M2[6][4] = M2[4][6];
-            M2[6][5] = M2[5][6];
-            M2[6][6] = 1;
-            pseudoinversel7(M2, M2Inv, v, rv1, w, res1 );
-
-            M1[0][0] = C[ XIdx  * n + NbrIdx[0] ];
-            M1[0][1] = C[ XIdx  * n + NbrIdx[1] ];
-            M1[0][2] = C[ XIdx  * n + NbrIdx[2] ];
-            M1[0][3] = C[ XIdx  * n + NbrIdx[3] ];
-            M1[0][4] = C[ XIdx  * n + NbrIdx[4] ];
-            M1[0][5] = C[ XIdx  * n + NbrIdx[5] ];
-            M1[0][6] = C[ XIdx  * n + NbrIdx[6] ];
-            
+            // Loop over other neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
-                if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || (d2 == (NbrIdxPointer[2] - 1))
-                 || (d2 == (NbrIdxPointer[3] - 1)) || (d2 == (NbrIdxPointer[4] - 1)) || (d2 == (NbrIdxPointer[5] - 1))
-                 || (d2 == (NbrIdxPointer[6] - 1))
-                 ){
+                if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
+                    (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1)) ||
+                    (d2 == (NbrIdxPointer[4] - 1)) || (d2 == (NbrIdxPointer[5] - 1)) ||
+                    (d2 == (NbrIdxPointer[6] - 1))){
                     continue;
                 }
                 YIdx = G_Chunk[d2];
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
-                    M0 = C[XIdx * n + YIdx]; 
-                    //Beginning Of the Indep Test Calculation
 
-                    M1[1][0] = C[ YIdx  * n + NbrIdx[0] ];
-                    M1[1][1] = C[ YIdx  * n + NbrIdx[1] ];
-                    M1[1][2] = C[ YIdx  * n + NbrIdx[2] ];
-                    M1[1][3] = C[ YIdx  * n + NbrIdx[3] ];
-                    M1[1][4] = C[ YIdx  * n + NbrIdx[4] ];
-                    M1[1][5] = C[ YIdx  * n + NbrIdx[5] ];
-                    M1[1][6] = C[ YIdx  * n + NbrIdx[6] ];
-                    //Begin to calculate I2Inv Using pseudo-inverse
-                    for (int c1 = 0; c1 < 2; c1++)
-                    {
-                        for (int c2 = 0; c2 < 7; c2++)
+                    // Loop over all M imputations
+                    for (int m = 0; m < M; m++) {
+                        // Compute M0_m
+                        M0_m = C[m * n * n + XIdx * n + YIdx]; 
+
+                        // Compute M1 matrices
+                        M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
+                        M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
+                        M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
+                        M1[0][3] = C[m * n * n + XIdx * n + NbrIdx[3]];
+                        M1[0][4] = C[m * n * n + XIdx * n + NbrIdx[4]];
+                        M1[0][5] = C[m * n * n + XIdx * n + NbrIdx[5]];
+                        M1[0][6] = C[m * n * n + XIdx * n + NbrIdx[6]];
+
+                        M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]];
+                        M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]];
+                        M1[1][2] = C[m * n * n + YIdx * n + NbrIdx[2]];
+                        M1[1][3] = C[m * n * n + YIdx * n + NbrIdx[3]];
+                        M1[1][4] = C[m * n * n + YIdx * n + NbrIdx[4]];
+                        M1[1][5] = C[m * n * n + YIdx * n + NbrIdx[5]];
+                        M1[1][6] = C[m * n * n + YIdx * n + NbrIdx[6]];
+
+                        // Compute M2 matrix
+                        M2[0][0] = 1.0;
+                        M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
+                        M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
+                        M2[0][3] = C[m * n * n + NbrIdx[0] * n + NbrIdx[3]];
+                        M2[0][4] = C[m * n * n + NbrIdx[0] * n + NbrIdx[4]];
+                        M2[0][5] = C[m * n * n + NbrIdx[0] * n + NbrIdx[5]];
+                        M2[0][6] = C[m * n * n + NbrIdx[0] * n + NbrIdx[6]];
+
+                        M2[1][0] = M2[0][1];
+                        M2[1][1] = 1.0;
+                        M2[1][2] = C[m * n * n + NbrIdx[1] * n + NbrIdx[2]];
+                        M2[1][3] = C[m * n * n + NbrIdx[1] * n + NbrIdx[3]];
+                        M2[1][4] = C[m * n * n + NbrIdx[1] * n + NbrIdx[4]];
+                        M2[1][5] = C[m * n * n + NbrIdx[1] * n + NbrIdx[5]];
+                        M2[1][6] = C[m * n * n + NbrIdx[1] * n + NbrIdx[6]];
+
+                        M2[2][0] = M2[0][2];
+                        M2[2][1] = M2[1][2];
+                        M2[2][2] = 1.0;
+                        M2[2][3] = C[m * n * n + NbrIdx[2] * n + NbrIdx[3]];
+                        M2[2][4] = C[m * n * n + NbrIdx[2] * n + NbrIdx[4]];
+                        M2[2][5] = C[m * n * n + NbrIdx[2] * n + NbrIdx[5]];
+                        M2[2][6] = C[m * n * n + NbrIdx[2] * n + NbrIdx[6]];
+
+                        M2[3][0] = M2[0][3];
+                        M2[3][1] = M2[1][3];
+                        M2[3][2] = M2[2][3];
+                        M2[3][3] = 1.0;
+                        M2[3][4] = C[m * n * n + NbrIdx[3] * n + NbrIdx[4]];
+                        M2[3][5] = C[m * n * n + NbrIdx[3] * n + NbrIdx[5]];
+                        M2[3][6] = C[m * n * n + NbrIdx[3] * n + NbrIdx[6]];
+
+                        M2[4][0] = M2[0][4];
+                        M2[4][1] = M2[1][4];
+                        M2[4][2] = M2[2][4];
+                        M2[4][3] = M2[3][4];
+                        M2[4][4] = 1.0;
+                        M2[4][5] = C[m * n * n + NbrIdx[4] * n + NbrIdx[5]];
+                        M2[4][6] = C[m * n * n + NbrIdx[4] * n + NbrIdx[6]];
+
+                        M2[5][0] = M2[0][5];
+                        M2[5][1] = M2[1][5];
+                        M2[5][2] = M2[2][5];
+                        M2[5][3] = M2[3][5];
+                        M2[5][4] = M2[4][5];
+                        M2[5][5] = 1.0;
+                        M2[5][6] = C[m * n * n + NbrIdx[5] * n + NbrIdx[6]];
+
+                        M2[6][0] = M2[0][6];
+                        M2[6][1] = M2[1][6];
+                        M2[6][2] = M2[2][6];
+                        M2[6][3] = M2[3][6];
+                        M2[6][4] = M2[4][6];
+                        M2[6][5] = M2[5][6];
+                        M2[6][6] = 1.0;
+
+                        // Compute pseudoinverse of M2
+                        pseudoinversel7(M2, M2Inv, v, rv1, w, res1);
+
+                        // Compute M1 * M2Inv
+                        for (int c1 = 0; c1 < 2; c1++)
                         {
-                            M1MulM2Inv[c1][c2] = 0;
-                            for (int c3 = 0; c3 < 7; c3++)
-                                M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            for (int c2 = 0; c2 < 7; c2++)
+                            {
+                                M1MulM2Inv[c1][c2] = 0.0;
+                                for (int c3 = 0; c3 < 7; c3++)
+                                    M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            }
                         }
+
+                        // Compute H matrix
+                        for (int c1 = 0; c1 < 2; c1++)
+                        {
+                            for (int c2 = 0; c2 < 2; c2++)
+                            {
+                                H[c1][c2] = 0.0;
+                                for (int c3 = 0; c3 < 7; c3++)
+                                    H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
+                            }
+                        }
+
+                        // Adjust H matrix
+                        H[0][0] = 1.0 - H[0][0];
+                        H[0][1] = M0_m - H[0][1];
+                        H[1][1] = 1.0 - H[1][1];
+
+                        // Compute partial correlation rho_m using the updated formula
+                        rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
+
+                        // Fisher Z-transformation
+                        double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
+                        z_m[m] = Z_m;
                     }
 
-                    for (int c1 = 0; c1 < 2; c1++)
-                    {
-                        for (int c2 = 0; c2 < 2; c2++)
-                        {
-                            H[c1][c2] = 0;
-                            for (int c3 = 0; c3 < 7; c3++)
-                                H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
-                        }
-                    }
-                    H[0][0]   = 1  - H[0][0];
-                    H[0][1]   = M0 - H[0][1];
-                    H[1][1]   = 1  - H[1][1];
+                    // Compute combined p-value
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
-                    rho     =  H[0][1] / ( sqrt( fabs(H[0][0] * H[1][1]) ) );
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );
-
-                    if (Z < alpha){
-                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
+                    if (p_val >= alpha){
+                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
+                            // Remove the edge between X and Y
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            pMax[XIdx * n + YIdx] = Z;
-                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
+                            // Store the maximum p-value
+                            pMax[XIdx * n + YIdx] = p_val;
+                            // Store the separation set
+                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0];
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
                             Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3];
@@ -1608,7 +1641,7 @@ __global__ void cal_Indepl7(
 }
 
 __global__ void cal_Indepl8(
-    double *C,       // Correlation matrices (flattened, size n x n x M)
+    double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
     int *GPrime,     // Neighbor list or compressed adjacency representation
     int *mutex,      // Mutex array for atomic operations (size n x n)
@@ -1620,51 +1653,61 @@ __global__ void cal_Indepl8(
     int M            // Number of imputations (imputed datasets)
 )
 {
+    // Variable declarations
     int YIdx;
-    int XIdx = by;
+    int XIdx = blockIdx.y;      // Index of variable X (current node)
     int NbrIdxPointer[8];
+    int NbrIdx[8];
     int SizeOfArr;
     int NumberOfJump;
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    int NbrIdx[8];
+    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
 
-    double M0;
-    double M1[2][8];
-    double M2[8][8];
-    double M2Inv[8][8];
-    double M1MulM2Inv[2][8];
-    double H[2][2];
-    double rho;
-    double Z;
-    //pseudo-inverse parameter
+    // Variables for multiple imputations
+    double z_m[MAX_M];          // Z values for each imputation
+    double M0_m;
+    double M1[2][8];           // M1 matrix
+    double M2[8][8];           // M2 matrix
+    double M2Inv[8][8];        // Inverse of M2
+    double M1MulM2Inv[2][8];   // Product of M1 and M2Inv
+    double H[2][2];            // H matrix
+    double rho_m;
+    double p_val;
+    int ord = 8;               // Order of the conditioning set
+
+    // Variables for SVD pseudoinverse
     double v[8][8];
     double w[8], rv1[8];
     double res1[8][8];
 
-    extern __shared__ int G_Chunk[];
-
+    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
+
+    // Get the number of neighbors for node X
     SizeOfArr = GPrime[XIdx * n + n - 1];
     if (SizeOfArr <= 8){
         return;
     }
 
+    // Calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL8) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL8;
     }
     else{
         NumberOfJump = SizeOfArr / ParGivenL8 + 1;
     }
-    //Copy Row Xid from GPrime to G_chunck
+
+    // Copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
-        if( ( tx + cnt * ParGivenL8 ) < SizeOfArr){
-            G_Chunk[ tx + cnt * ParGivenL8 ] =  GPrime[ XIdx * n + tx + cnt * ParGivenL8];
+        if( ( threadIdx.x + cnt * ParGivenL8 ) < SizeOfArr){
+            G_Chunk[ threadIdx.x + cnt * ParGivenL8 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL8];
         }
         __syncthreads();
     }
 
+    // Calculate the total number of combinations for the conditioning set
     BINOM(SizeOfArr, 8, &NumOfComb);
     if( (NumOfComb % (ParGivenL8 * NumOfBlockForEachNodeL8)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL8 * NumOfBlockForEachNodeL8);
@@ -1672,158 +1715,182 @@ __global__ void cal_Indepl8(
     else{
         NumOfGivenJump = NumOfComb / (ParGivenL8 * NumOfBlockForEachNodeL8) + 1;
     }
-    
 
+    // Main processing loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
             return;
         }
-        if(tx + bx * ParGivenL8 + d1 * ParGivenL8 * NumOfBlockForEachNodeL8 < NumOfComb){
+        int combIdx = threadIdx.x + blockIdx.x * ParGivenL8 + d1 * ParGivenL8 * NumOfBlockForEachNodeL8;
+        if(combIdx < NumOfComb){
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            IthCombination(NbrIdxPointer, SizeOfArr, 8, tx + bx * ParGivenL8 + d1 * ParGivenL8 * NumOfBlockForEachNodeL8 + 1);
+            // Get indices of the combination
+            IthCombination(NbrIdxPointer, SizeOfArr, 8, combIdx + 1);
             for(int tmp = 0; tmp < 8; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            M2[0][0] = 1;
-            M2[0][1] = C[ NbrIdx[0]  * n + NbrIdx[1] ];
-            M2[0][2] = C[ NbrIdx[0]  * n + NbrIdx[2] ];
-            M2[0][3] = C[ NbrIdx[0]  * n + NbrIdx[3] ];
-            M2[0][4] = C[ NbrIdx[0]  * n + NbrIdx[4] ];
-            M2[0][5] = C[ NbrIdx[0]  * n + NbrIdx[5] ];
-            M2[0][6] = C[ NbrIdx[0]  * n + NbrIdx[6] ];
-            M2[0][7] = C[ NbrIdx[0]  * n + NbrIdx[7] ];
-
-            M2[1][0] = M2[0][1];
-            M2[1][1] = 1;
-            M2[1][2] = C[ NbrIdx[1]  * n + NbrIdx[2] ];
-            M2[1][3] = C[ NbrIdx[1]  * n + NbrIdx[3] ];
-            M2[1][4] = C[ NbrIdx[1]  * n + NbrIdx[4] ];
-            M2[1][5] = C[ NbrIdx[1]  * n + NbrIdx[5] ];
-            M2[1][6] = C[ NbrIdx[1]  * n + NbrIdx[6] ];
-            M2[1][7] = C[ NbrIdx[1]  * n + NbrIdx[7] ];
-            
-            M2[2][0] = M2[0][2];
-            M2[2][1] = M2[1][2];
-            M2[2][2] = 1;
-            M2[2][3] = C[ NbrIdx[2]  * n + NbrIdx[3] ];
-            M2[2][4] = C[ NbrIdx[2]  * n + NbrIdx[4] ];
-            M2[2][5] = C[ NbrIdx[2]  * n + NbrIdx[5] ];
-            M2[2][6] = C[ NbrIdx[2]  * n + NbrIdx[6] ];
-            M2[2][7] = C[ NbrIdx[2]  * n + NbrIdx[7] ];
-
-            M2[3][0] = M2[0][3];
-            M2[3][1] = M2[1][3];
-            M2[3][2] = M2[2][3];
-            M2[3][3] = 1;
-            M2[3][4] = C[ NbrIdx[3]  * n + NbrIdx[4] ];
-            M2[3][5] = C[ NbrIdx[3]  * n + NbrIdx[5] ];
-            M2[3][6] = C[ NbrIdx[3]  * n + NbrIdx[6] ];
-            M2[3][7] = C[ NbrIdx[3]  * n + NbrIdx[7] ];
-            
-            M2[4][0] = M2[0][4];
-            M2[4][1] = M2[1][4];
-            M2[4][2] = M2[2][4];
-            M2[4][3] = M2[3][4];
-            M2[4][4] = 1;
-            M2[4][5] = C[ NbrIdx[4]  * n + NbrIdx[5] ];
-            M2[4][6] = C[ NbrIdx[4]  * n + NbrIdx[6] ];
-            M2[4][7] = C[ NbrIdx[4]  * n + NbrIdx[7] ];
-            
-
-            M2[5][0] = M2[0][5];
-            M2[5][1] = M2[1][5];
-            M2[5][2] = M2[2][5];
-            M2[5][3] = M2[3][5];
-            M2[5][4] = M2[4][5];
-            M2[5][5] = 1;
-            M2[5][6] = C[ NbrIdx[5]  * n + NbrIdx[6] ];
-            M2[5][7] = C[ NbrIdx[5]  * n + NbrIdx[7] ];
-
-
-            M2[6][0] = M2[0][6];
-            M2[6][1] = M2[1][6];
-            M2[6][2] = M2[2][6];
-            M2[6][3] = M2[3][6];
-            M2[6][4] = M2[4][6];
-            M2[6][5] = M2[5][6];
-            M2[6][6] = 1;
-            M2[6][7] = C[ NbrIdx[6]  * n + NbrIdx[7] ];
-            
-            M2[7][0] = M2[0][7];
-            M2[7][1] = M2[1][7];
-            M2[7][2] = M2[2][7];
-            M2[7][3] = M2[3][7];
-            M2[7][4] = M2[4][7];
-            M2[7][5] = M2[5][7];
-            M2[7][6] = M2[6][7];
-            M2[7][7] = 1;
-
-            M1[0][0] = C[ XIdx  * n + NbrIdx[0] ];
-            M1[0][1] = C[ XIdx  * n + NbrIdx[1] ];
-            M1[0][2] = C[ XIdx  * n + NbrIdx[2] ];
-            M1[0][3] = C[ XIdx  * n + NbrIdx[3] ];
-            M1[0][4] = C[ XIdx  * n + NbrIdx[4] ];
-            M1[0][5] = C[ XIdx  * n + NbrIdx[5] ];
-            M1[0][6] = C[ XIdx  * n + NbrIdx[6] ];
-            M1[0][7] = C[ XIdx  * n + NbrIdx[7] ];
-            pseudoinversel8(M2, M2Inv, v, rv1, w, res1 );
+            // Loop over other neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
-                if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || (d2 == (NbrIdxPointer[2] - 1))
-                 || (d2 == (NbrIdxPointer[3] - 1)) || (d2 == (NbrIdxPointer[4] - 1)) || (d2 == (NbrIdxPointer[5] - 1))
-                 || (d2 == (NbrIdxPointer[6] - 1)) || (d2 == (NbrIdxPointer[7] - 1))
-                 ){
+                if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
+                    (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1)) ||
+                    (d2 == (NbrIdxPointer[4] - 1)) || (d2 == (NbrIdxPointer[5] - 1)) ||
+                    (d2 == (NbrIdxPointer[6] - 1)) || (d2 == (NbrIdxPointer[7] - 1))){
                     continue;
                 }
                 YIdx = G_Chunk[d2];
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
-                    M0 = C[XIdx * n + YIdx]; 
-                    //Beginning Of the Indep Test Calculation
-                    M1[1][0] = C[ YIdx  * n + NbrIdx[0] ];
-                    M1[1][1] = C[ YIdx  * n + NbrIdx[1] ];
-                    M1[1][2] = C[ YIdx  * n + NbrIdx[2] ];
-                    M1[1][3] = C[ YIdx  * n + NbrIdx[3] ];
-                    M1[1][4] = C[ YIdx  * n + NbrIdx[4] ];
-                    M1[1][5] = C[ YIdx  * n + NbrIdx[5] ];
-                    M1[1][6] = C[ YIdx  * n + NbrIdx[6] ];
-                    M1[1][7] = C[ YIdx  * n + NbrIdx[7] ];
-                    //Begin to calculate I2Inv Using pseudo-inverse
-                    for (int c1 = 0; c1 < 2; c1++)
-                    {
-                        for (int c2 = 0; c2 < 8; c2++)
+
+                    // Loop over all M imputations
+                    for (int m = 0; m < M; m++) {
+                        // Compute M0_m
+                        M0_m = C[m * n * n + XIdx * n + YIdx]; 
+
+                        // Compute M1 matrices
+                        M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
+                        M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
+                        M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
+                        M1[0][3] = C[m * n * n + XIdx * n + NbrIdx[3]];
+                        M1[0][4] = C[m * n * n + XIdx * n + NbrIdx[4]];
+                        M1[0][5] = C[m * n * n + XIdx * n + NbrIdx[5]];
+                        M1[0][6] = C[m * n * n + XIdx * n + NbrIdx[6]];
+                        M1[0][7] = C[m * n * n + XIdx * n + NbrIdx[7]];
+
+                        M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]];
+                        M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]];
+                        M1[1][2] = C[m * n * n + YIdx * n + NbrIdx[2]];
+                        M1[1][3] = C[m * n * n + YIdx * n + NbrIdx[3]];
+                        M1[1][4] = C[m * n * n + YIdx * n + NbrIdx[4]];
+                        M1[1][5] = C[m * n * n + YIdx * n + NbrIdx[5]];
+                        M1[1][6] = C[m * n * n + YIdx * n + NbrIdx[6]];
+                        M1[1][7] = C[m * n * n + YIdx * n + NbrIdx[7]];
+
+                        // Compute M2 matrix
+                        M2[0][0] = 1.0;
+                        M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
+                        M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
+                        M2[0][3] = C[m * n * n + NbrIdx[0] * n + NbrIdx[3]];
+                        M2[0][4] = C[m * n * n + NbrIdx[0] * n + NbrIdx[4]];
+                        M2[0][5] = C[m * n * n + NbrIdx[0] * n + NbrIdx[5]];
+                        M2[0][6] = C[m * n * n + NbrIdx[0] * n + NbrIdx[6]];
+                        M2[0][7] = C[m * n * n + NbrIdx[0] * n + NbrIdx[7]];
+
+                        M2[1][0] = M2[0][1];
+                        M2[1][1] = 1.0;
+                        M2[1][2] = C[m * n * n + NbrIdx[1] * n + NbrIdx[2]];
+                        M2[1][3] = C[m * n * n + NbrIdx[1] * n + NbrIdx[3]];
+                        M2[1][4] = C[m * n * n + NbrIdx[1] * n + NbrIdx[4]];
+                        M2[1][5] = C[m * n * n + NbrIdx[1] * n + NbrIdx[5]];
+                        M2[1][6] = C[m * n * n + NbrIdx[1] * n + NbrIdx[6]];
+                        M2[1][7] = C[m * n * n + NbrIdx[1] * n + NbrIdx[7]];
+
+                        M2[2][0] = M2[0][2];
+                        M2[2][1] = M2[1][2];
+                        M2[2][2] = 1.0;
+                        M2[2][3] = C[m * n * n + NbrIdx[2] * n + NbrIdx[3]];
+                        M2[2][4] = C[m * n * n + NbrIdx[2] * n + NbrIdx[4]];
+                        M2[2][5] = C[m * n * n + NbrIdx[2] * n + NbrIdx[5]];
+                        M2[2][6] = C[m * n * n + NbrIdx[2] * n + NbrIdx[6]];
+                        M2[2][7] = C[m * n * n + NbrIdx[2] * n + NbrIdx[7]];
+
+                        M2[3][0] = M2[0][3];
+                        M2[3][1] = M2[1][3];
+                        M2[3][2] = M2[2][3];
+                        M2[3][3] = 1.0;
+                        M2[3][4] = C[m * n * n + NbrIdx[3] * n + NbrIdx[4]];
+                        M2[3][5] = C[m * n * n + NbrIdx[3] * n + NbrIdx[5]];
+                        M2[3][6] = C[m * n * n + NbrIdx[3] * n + NbrIdx[6]];
+                        M2[3][7] = C[m * n * n + NbrIdx[3] * n + NbrIdx[7]];
+
+                        M2[4][0] = M2[0][4];
+                        M2[4][1] = M2[1][4];
+                        M2[4][2] = M2[2][4];
+                        M2[4][3] = M2[3][4];
+                        M2[4][4] = 1.0;
+                        M2[4][5] = C[m * n * n + NbrIdx[4] * n + NbrIdx[5]];
+                        M2[4][6] = C[m * n * n + NbrIdx[4] * n + NbrIdx[6]];
+                        M2[4][7] = C[m * n * n + NbrIdx[4] * n + NbrIdx[7]];
+
+                        M2[5][0] = M2[0][5];
+                        M2[5][1] = M2[1][5];
+                        M2[5][2] = M2[2][5];
+                        M2[5][3] = M2[3][5];
+                        M2[5][4] = M2[4][5];
+                        M2[5][5] = 1.0;
+                        M2[5][6] = C[m * n * n + NbrIdx[5] * n + NbrIdx[6]];
+                        M2[5][7] = C[m * n * n + NbrIdx[5] * n + NbrIdx[7]];
+
+                        M2[6][0] = M2[0][6];
+                        M2[6][1] = M2[1][6];
+                        M2[6][2] = M2[2][6];
+                        M2[6][3] = M2[3][6];
+                        M2[6][4] = M2[4][6];
+                        M2[6][5] = M2[5][6];
+                        M2[6][6] = 1.0;
+                        M2[6][7] = C[m * n * n + NbrIdx[6] * n + NbrIdx[7]];
+
+                        M2[7][0] = M2[0][7];
+                        M2[7][1] = M2[1][7];
+                        M2[7][2] = M2[2][7];
+                        M2[7][3] = M2[3][7];
+                        M2[7][4] = M2[4][7];
+                        M2[7][5] = M2[5][7];
+                        M2[7][6] = M2[6][7];
+                        M2[7][7] = 1.0;
+
+                        // Compute pseudoinverse of M2
+                        pseudoinversel8(M2, M2Inv, v, rv1, w, res1);
+
+                        // Compute M1 * M2Inv
+                        for (int c1 = 0; c1 < 2; c1++)
                         {
-                            M1MulM2Inv[c1][c2] = 0;
-                            for (int c3 = 0; c3 < 8; c3++)
-                                M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            for (int c2 = 0; c2 < 8; c2++)
+                            {
+                                M1MulM2Inv[c1][c2] = 0.0;
+                                for (int c3 = 0; c3 < 8; c3++)
+                                    M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            }
                         }
+
+                        // Compute H matrix
+                        for (int c1 = 0; c1 < 2; c1++)
+                        {
+                            for (int c2 = 0; c2 < 2; c2++)
+                            {
+                                H[c1][c2] = 0.0;
+                                for (int c3 = 0; c3 < 8; c3++)
+                                    H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
+                            }
+                        }   
+                        // Adjust H matrix
+                        H[0][0]   = 1.0  - H[0][0];
+                        H[0][1]   = M0_m - H[0][1];
+                        H[1][1]   = 1.0  - H[1][1];
+
+                        // Compute partial correlation rho_m using the updated formula
+                        rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));  
+
+                        // Fisher Z-transformation using the updated formula
+                        double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
+                        z_m[m] = Z_m;
                     }
 
-                    for (int c1 = 0; c1 < 2; c1++)
-                    {
-                        for (int c2 = 0; c2 < 2; c2++)
-                        {
-                            H[c1][c2] = 0;
-                            for (int c3 = 0; c3 < 8; c3++)
-                                H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
-                        }
-                    }   
-                    H[0][0]   = 1  - H[0][0];
-                    H[0][1]   = M0 - H[0][1];
-                    H[1][1]   = 1  - H[1][1];
+                    // Compute combined p-value
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
-                    rho     =  H[0][1] / ( sqrt( abs(H[0][0] * H[1][1]) ) );  
-                    Z     =  abs( 0.5 * log( abs( (1 + rho)  /  (1 - rho) ) ) );     
-                    
-                    if (Z < alpha){
-                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock
+                    if (p_val >= alpha){
+                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
+                            // Remove the edge between X and Y
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            pMax[XIdx * n + YIdx] = Z;
-                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
+                            // Store the maximum p-value
+                            pMax[XIdx * n + YIdx] = p_val;
+                            // Store the separation set
+                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0];
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
                             Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3];

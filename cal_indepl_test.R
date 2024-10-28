@@ -13,8 +13,8 @@ source("cuPCMI.R")
 set.seed(9)
 p <- 22
 prob_dag <- 0.55
-prob_miss <- 0.25
-n <- 3000
+prob_miss <- 0.5
+n <- 10000
 alpha <- 0.1
 max_order <- 5
 
@@ -47,8 +47,6 @@ cat("micd_PC\n")
 print(micd_PC)
 cat("\n")
 
-print(micd_PC@max.ord)
-
 tic()
 cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
 print("The total time consumed by cuPCMI is:")
@@ -58,20 +56,20 @@ cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
 
-cat("micdPC ord:", micd_PC@max.ord)
-cat(micd_PC@max.ord)
+cat("micdPC ord:", mi2cd_PC@max.ord, "\n")
+cat("cuPC ord:", micd_PC@max.ord, "\n")
 shdSkeleton <- function(fit1, fit2){
   graph1 <- fit1 %>% getGraph() %>% ugraph()
   graph2 <- fit2 %>% getGraph() %>% ugraph()
   return (shd(graph1, graph2))
 }
 
-# if (require(Rgraphviz)) {
-#   ## show estimated CPDAG
-#   par(mfrow = c(1, 2))
-#   plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
-#   plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
-# }
+if (require(Rgraphviz)) {
+  ## show estimated CPDAG
+  par(mfrow = c(1, 2))
+  plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
+  plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
+}
 
 
 

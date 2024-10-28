@@ -16,7 +16,7 @@ prob_dag <- 0.55
 prob_miss <- 0.1
 n <- 10000
 alpha <- 0.1
-max_order <- 5
+max_order <- 10
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -33,7 +33,7 @@ data_missing <- ampute(data, prop = prob_miss,
 
 # naive mice imputation
 tic()
-imputed_data <- mice(data_missing, m = 10, method = 'pmm', printFlag = TRUE)
+imputed_data <- mice(data_missing, m = 10, method = 'norm', printFlag = TRUE)
 toc()
 
 suffStatMI <- getSuffCU(imputed_data) 
@@ -59,7 +59,7 @@ print(cuPCMI_fit)
 cat("\n")
 
 cat("micdPC ord:", micd_PC@max.ord, "\n")
-cat("cuPC ord:", micd_PC@max.ord, "\n")
+cat("cuPC ord:", cuPCMI_fit@max.ord, "\n")
 shdSkeleton <- function(fit1, fit2){
   graph1 <- fit1 %>% getGraph() %>% ugraph()
   graph2 <- fit2 %>% getGraph() %>% ugraph()
@@ -85,7 +85,7 @@ sepset2 <- micd_PC@sepset         # Replace with your second sepset
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # # Print the dataframe
-print(df_values_indices)
+#print(df_values_indices)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 

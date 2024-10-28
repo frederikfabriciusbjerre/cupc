@@ -50,8 +50,8 @@
 #define NumOfBlockForEachNodeL14 2
 #define ParGivenLAbove14 64
 #define NumOfBlockForEachNodeLAbove14 2
-#define ML 20
-#define MAX_M 100
+#define ML 32
+#define MAX_M 128
 
 //==========================> Function Declaration <==========================
 __global__ void cal_Indepl0(double *C, int *G, int* Sepset, double *pMax, double alpha, int n, int nrows, int M);

@@ -2475,10 +2475,7 @@ __global__ void cal_Indepl11(
     }
 }
 
-// Define MAX_M to be the maximum number of imputations
-#define MAX_M 100  // Adjust as needed
 
-// Function for cal_Indepl12
 __global__ void cal_Indepl12(
     double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
@@ -2672,7 +2669,6 @@ __global__ void cal_Indepl12(
     }
 }
 
-// Function for cal_Indepl13
 __global__ void cal_Indepl13(
     double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
@@ -2866,7 +2862,6 @@ __global__ void cal_Indepl13(
     }
 }
 
-// Function for cal_Indepl14
 __global__ void cal_Indepl14(
     double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
@@ -3060,7 +3055,6 @@ __global__ void cal_Indepl14(
     }
 }
 
-// CUDA Kernel
 __global__ void cal_Indep(
     double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)

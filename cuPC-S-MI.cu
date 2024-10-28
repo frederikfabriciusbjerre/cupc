@@ -56,22 +56,22 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
     //----------------------------------------------------------
     for (*l = 0; *l <= ML && !FinishFlag && *l <= *maxlevel; *l = *l + 1){
         if (*l == 0){
+            BLOCKS_PER_GRID = dim3(n * n, 1, 1);
+            THREADS_PER_BLOCK = dim3(ML, 1, 1);
+            SepSet_initialize<<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>>(SepSet_cuda, n);
+            CudaCheckError();
             if ( (n * n) < 1024) {
                 BLOCKS_PER_GRID   = dim3( 1, 1 ,1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, nrows, M);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>>  (C_cuda, G_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
             else {
                 BLOCKS_PER_GRID   = dim3(ceil( ( (double) (n)) / 32.0), ceil( ( (double) (n)) / 32.0), 1);
                 THREADS_PER_BLOCK = dim3(32, 32, 1);
-                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, alpha, pMax_cuda, n, nrows, M);
+                cal_Indepl0 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>> (C_cuda, G_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             }
-            BLOCKS_PER_GRID = dim3(n * n, 1, 1);
-            THREADS_PER_BLOCK = dim3(ML, 1, 1);
-            SepSet_initialize<<< BLOCKS_PER_GRID, THREADS_PER_BLOCK >>>(SepSet_cuda, n);
-            CudaCheckError();
         } else {
             //================================> Start Scan Process <===============================
             HANDLE_ERROR( cudaMemset(nprime_cuda, 0, 1 * sizeof(int)) );
@@ -229,13 +229,22 @@ __global__ void SepSet_initialize(int *SepSet, int size){
     SepSet[row * ML + tx] = -1;
 }
 
-__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int nrows, int M)
+__global__ void cal_Indepl0(
+    double *C,       // Correlation matrices (flattened, size n x n x M)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M            // Number of imputations (imputed datasets)
+)
 {
     int row = blockDim.x * bx + tx;
     int col = blockDim.y * by + ty;
 
     if(row < col && col < n){
-        double z_m[MAX_M]; // MAX_M set to 10 atm
+        double z_m[MAX_M]; 
         double z_sum = 0.0;
 
         // Loop over all M imputations
@@ -285,7 +294,7 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
-            // Sepset[(XIdx * n + YIdx) * ML] = -1; // todo
+            // Sepset[(row * n + col) * ML] = -1; // todo
 
         } else {
             G[row * n + col] = 1;
@@ -294,7 +303,7 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
     }
     if (row == col && col < n){
         G[row * n + col] = 0;
-        G[col * n + row] = 0; // should this be here? 
+        G[col * n + row] = 0; 
     }
 }
 

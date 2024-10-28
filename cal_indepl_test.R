@@ -49,6 +49,7 @@ cat("micd_PC\n")
 print(micd_PC)
 cat("\n")
 
+source("cuPCMI.R")
 tic()
 cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
 print("The total time consumed by cuPCMI is:")
@@ -75,6 +76,7 @@ shdSkeleton <- function(fit1, fit2){
 
 
 
+
 source("printfunc.R")
 sepset1 <- cuPCMI_fit@sepset
 sepset2 <- micd_PC@sepset
@@ -85,7 +87,7 @@ findDiffIndexes(sepset1, sepset2)
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # # Print the dataframe
-#print(df_values_indices)
+print(df_values_indices)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 

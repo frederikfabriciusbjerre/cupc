@@ -3,6 +3,8 @@
  *
  *  Created on: Apr 16, 2019
  *      Author: behrooz
+ *  Modified on: Okt. 28, 2024
+ *      Author: Frederik Fabricius-Bjerre
  */
 
 #ifndef CUPC_S_H_
@@ -52,7 +54,7 @@
 #define MAX_M 100
 
 //==========================> Function Declaration <==========================
-__global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n, int nrows, int M);
+__global__ void cal_Indepl0(double *C, int *G, int* Sepset, double *pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl1(double *C, int *G, int *GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl2(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl3(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
@@ -94,4 +96,4 @@ __device__ double PYTHAG(double a, double b);
 __device__ void inverse(double M2[][3], double M2Inv[][3]);
 
 
-#endif /* CUPC_S_H_ */
+#endif

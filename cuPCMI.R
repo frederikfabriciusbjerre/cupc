@@ -107,7 +107,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
         max_level <- m.max
     }
 
-    sepsetMatrix <- matrix(-1, nrow = p * p, ncol = 14)
+    sepsetMatrix <- matrix(-1, nrow = p * p, ncol = 20)
     dyn.load("SkeletonMI.so")
 
 
@@ -127,12 +127,13 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     )
 
     ord <- z$l
+    print(ord)
     G <- (matrix(z$G, nrow = p, ncol = p)) > 0
 
     pMax <- (matrix(z$pmax, nrow = p, ncol = p))
     pMax[which(pMax == -100000)] <- -Inf
-    if (ord <= 14) {
-        sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 14, ncol = p^2))
+    if (ord <= 20) {
+        sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 20, ncol = p^2))
         #print(sepsetMatrix)
         index_of_cuted_edge <- row(sepsetMatrix)[which(sepsetMatrix != -1)]
         for (i in index_of_cuted_edge) {
@@ -154,7 +155,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
                                 }
     }
     } else {
-        # TODO: Update sepset for more than 14 levels
+        # TODO: Update sepset for more than 20 levels
         # don't think we need this, but keep it for now
     }
 

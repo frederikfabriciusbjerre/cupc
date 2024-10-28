@@ -50,7 +50,7 @@
 #define NumOfBlockForEachNodeL14 2
 #define ParGivenLAbove14 64
 #define NumOfBlockForEachNodeLAbove14 2
-#define ML 14
+#define ML 20
 #define MAX_M 100
 
 //==========================> Function Declaration <==========================

@@ -11,12 +11,12 @@ source("cuPC.R")
 source("cuPCMI.R")
 
 set.seed(9)
-p <- 22
-prob_dag <- 0.25
+p <- 30
+prob_dag <- 0.1
 prob_miss <- 0.1
-n <- 10000
-alpha <- 0.1
-max_order <- 5
+n <- 1000
+alpha <- 0.995
+max_order <- 20
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -33,20 +33,19 @@ data_missing <- ampute(data, prop = prob_miss,
 
 # naive mice imputation
 tic()
-imputed_data <- mice(data_missing, m = 10, method = "norm", printFlag = FALSE)
+imputed_data <- mice(data_missing, m = 10, method = "norm", printFlag = FALSE, remove.collinear = FALSE)
 toc()
 
 suffStatMI <- getSuffCU(imputed_data) 
 suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 
-tic()
-micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, skel.method = "stable",
- m.max = max_order)
-print("The total time consumed by micd_PC is:")
-toc()
-cat("\n")
-cat("micd_PC\n")
-print(micd_PC)
+# tic()
+# micd_PC <- pc(suffStatMICD, indepTest = gaussMItest, p = p, alpha = alpha, skel.method = "stable.fast", m.max = max_order)
+# print("The total time consumed by micd_PC is:")
+# toc()
+# cat("\n")
+# cat("micd_PC\n")
+# print(micd_PC)
 cat("\n")
 
 source("cuPCMI.R")
@@ -59,7 +58,7 @@ cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
 
-cat("micdPC ord:", micd_PC@max.ord, "\n")
+# cat("micdPC ord:", micd_PC@max.ord, "\n")
 cat("cuPC ord:", cuPCMI_fit@max.ord, "\n")
 shdSkeleton <- function(fit1, fit2){
   graph1 <- fit1 %>% getGraph() %>% ugraph()

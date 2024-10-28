@@ -146,7 +146,7 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
 
             # Assign the separation set
             # sepset[[x]][[y]] <- sepset[[y]][[x]] <- valid_entries + 1
-            sepset[[x]][[y]] <- valid_entries + 1
+            sepset[[x]][[y]] <- valid_entries
     }
     } else {
         # TODO: Update sepset for more than 14 levels

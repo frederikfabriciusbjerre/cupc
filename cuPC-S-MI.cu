@@ -285,13 +285,16 @@ __global__ void cal_Indepl0(double *C, int *G, double alpha, double *pMax, int n
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
+            // Sepset[(XIdx * n + YIdx) * ML] = -1; // todo
+
         } else {
             G[row * n + col] = 1;
             G[col * n + row] = 1;
         }
     }
-    if (row == col && row < n) {
+    if (row == col && col < n){
         G[row * n + col] = 0;
+        G[col * n + row] = 0; // should this be here? 
     }
 }
 
@@ -406,7 +409,7 @@ __global__ void cal_Indepl1(
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
-                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx;
+                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx + 1;
                             // printf("XIdx=%d, YIdx=%d, NbrIdx=%d, p_val=%f\n", XIdx, YIdx, NbrIdx, p_val);
                         }
                     }
@@ -565,8 +568,8 @@ __global__ void cal_Indepl2(
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
-                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
-                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
+                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
                             // printf("XIdx=%d, YIdx=%d, NbrIdx=(%d, %d), p_val=%f\n", XIdx, YIdx, NbrIdx[0], NbrIdx[1], p_val);
                         }
                     }
@@ -733,9 +736,9 @@ __global__ void cal_Indepl3(
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
-                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
-                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
-                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
+                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
                         }
                     }
                 }
@@ -1151,11 +1154,11 @@ __global__ void cal_Indepl5(
                             // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
-                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
-                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
-                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
-                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3];
-                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4];
+                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4] + 1;
                         }
                     }
                 }
@@ -1382,12 +1385,12 @@ __global__ void cal_Indepl6(
                             // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
-                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0];
-                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
-                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
-                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3];
-                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4];
-                            Sepset[(XIdx * n + YIdx) * ML + 5] = NbrIdx[5];   
+                            Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 5] = NbrIdx[5] + 1;   
                         }
                     }
                 }
@@ -1630,13 +1633,13 @@ __global__ void cal_Indepl7(
                             // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
-                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0];
-                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
-                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
-                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3];
-                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4];
-                            Sepset[(XIdx * n + YIdx) * ML + 5] = NbrIdx[5];
-                            Sepset[(XIdx * n + YIdx) * ML + 6] = NbrIdx[6];
+                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 5] = NbrIdx[5] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 6] = NbrIdx[6] + 1;
                         }
                     }
                 }
@@ -1895,14 +1898,14 @@ __global__ void cal_Indepl8(
                             // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
-                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0];
-                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
-                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
-                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3];
-                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4];
-                            Sepset[(XIdx * n + YIdx) * ML + 5] = NbrIdx[5];
-                            Sepset[(XIdx * n + YIdx) * ML + 6] = NbrIdx[6];
-                            Sepset[(XIdx * n + YIdx) * ML + 7] = NbrIdx[7];
+                            Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 3] = NbrIdx[3] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 4] = NbrIdx[4] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 5] = NbrIdx[5] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 6] = NbrIdx[6] + 1;
+                            Sepset[(XIdx * n + YIdx) * ML + 7] = NbrIdx[7] + 1;
                         }
                     }
                 }
@@ -2095,7 +2098,7 @@ __global__ void cal_Indepl9(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < 9; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }
@@ -2289,7 +2292,7 @@ __global__ void cal_Indepl10(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < 10; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }
@@ -2483,7 +2486,7 @@ __global__ void cal_Indepl11(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < 11; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }
@@ -2680,7 +2683,7 @@ __global__ void cal_Indepl12(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < 12; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }
@@ -2874,7 +2877,7 @@ __global__ void cal_Indepl13(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < 13; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }
@@ -3068,7 +3071,7 @@ __global__ void cal_Indepl14(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < 14; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }
@@ -3280,7 +3283,7 @@ __global__ void cal_Indep(
                             pMax[XIdx * n + YIdx] = p_val;
                             // Store the separation set
                             for (int idx = 0; idx < order; idx++) {
-                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
                         }
                     }

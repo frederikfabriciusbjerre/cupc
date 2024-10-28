@@ -76,18 +76,16 @@ shdSkeleton <- function(fit1, fit2){
 
 
 source("printfunc.R")
-sepset1 <- cuPCMI_fit@sepset      # Replace with your first sepset
-sepset2 <- micd_PC@sepset         # Replace with your second sepset
+sepset1 <- cuPCMI_fit@sepset
+sepset2 <- micd_PC@sepset
 findDiffIndexes(sepset1, sepset2)
-# Example usage:
-# Assuming 'sepset1' and 'sepset2' are your two nested lists
 
 
 # Flatten the two sepsets into a dataframe
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # # Print the dataframe
-print(df_values_indices)
+#print(df_values_indices)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 

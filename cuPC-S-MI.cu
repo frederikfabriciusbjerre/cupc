@@ -181,7 +181,12 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
                 cal_Indepl14 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             } else{
-                //TODO: add PC serial
+                // if l > 14, we call something that takes up more memory and is slower.
+                // this works up to l = ML
+                BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeLAbove14, n, 1);
+                THREADS_PER_BLOCK = dim3(ParGivenLAbove14, 1, 1);
+                cal_Indep <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M, *l);
+                CudaCheckError();
             }
         }
     }// if l > 0
@@ -3073,8 +3078,7 @@ __global__ void cal_Indepl14(
     }
 }
 
-#define MAX_M 100  // Adjust as needed
-
+// CUDA Kernel
 __global__ void cal_Indep(
     double *C,       // Correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
@@ -3089,6 +3093,16 @@ __global__ void cal_Indep(
     int order        // The order of the conditioning set
 )
 {
+    // Check if order exceeds ML
+    if (order > ML) {
+        // Ensure only one thread prints the error message
+        if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+            printf("Error: 'order' (%d) exceeds the maximum allowed value of %d.\n", order, ML);
+        }
+        // Terminate the kernel early
+        return;
+    }
+
     // Variable declarations
     int YIdx;
     int XIdx = blockIdx.y;      // Index of variable X (current node)
@@ -3105,40 +3119,25 @@ __global__ void cal_Indep(
     double rho_m;
     double p_val;
 
-    // Dynamic allocation of arrays based on 'order'
-    int *NbrIdxPointer = (int*)malloc(order * sizeof(int));
-    int *NbrIdx = (int*)malloc(order * sizeof(int));
+    // Static allocation of arrays based on 'order'
+    int NbrIdxPointer[ML];        // Indices for combinations
+    int NbrIdx[ML];                // Actual neighbor indices
 
-    double **M1 = (double**)malloc(2 * sizeof(double*));
-    M1[0] = (double*)malloc(order * sizeof(double));
-    M1[1] = (double*)malloc(order * sizeof(double));
+    double M1[2][ML];              // 2 x ML matrix
+    double M2[ML][ML];             // ML x ML matrix
+    double M2Inv[ML][ML];          // ML x ML pseudoinverse matrix
 
-    double **M2 = (double**)malloc(order * sizeof(double*));
-    double **M2Inv = (double**)malloc(order * sizeof(double*));
-    for (int i = 0; i < order; i++) {
-        M2[i] = (double*)malloc(order * sizeof(double));
-        M2Inv[i] = (double*)malloc(order * sizeof(double));
-    }
+    double M1MulM2Inv[2][ML];      // 2 x ML matrix
 
-    double **M1MulM2Inv = (double**)malloc(2 * sizeof(double*));
-    M1MulM2Inv[0] = (double*)malloc(order * sizeof(double));
-    M1MulM2Inv[1] = (double*)malloc(order * sizeof(double));
-
-    double H[2][2];
+    double H[2][2];                // 2 x 2 matrix
 
     // Variables for SVD pseudoinverse
-    double **v = (double**)malloc(order * sizeof(double*));
-    for (int i = 0; i < order; i++) {
-        v[i] = (double*)malloc(order * sizeof(double));
-    }
-    double *w = (double*)malloc(order * sizeof(double));
-    double *rv1 = (double*)malloc(order * sizeof(double));
-    double **res1 = (double**)malloc(order * sizeof(double*));
-    for (int i = 0; i < order; i++) {
-        res1[i] = (double*)malloc(order * sizeof(double));
-    }
+    double v[ML][ML];              // Right singular vectors
+    double w[ML];                  // Singular values
+    double rv1[ML];                // Temporary storage
+    double res1[ML][ML];           // Intermediate matrix
 
-    int ord = order;  // Order of the conditioning set
+    int ord = order;               // Order of the conditioning set
 
     // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
@@ -3146,66 +3145,41 @@ __global__ void cal_Indep(
     // Get the number of neighbors for node X
     SizeOfArr = GPrime[XIdx * n + n - 1];
     if (SizeOfArr <= order){
-        // Free allocated memory
-        free(NbrIdxPointer);
-        free(NbrIdx);
-        free(M1[0]); free(M1[1]); free(M1);
-        for (int i = 0; i < order; i++) {
-            free(M2[i]); free(M2Inv[i]);
-            free(v[i]); free(res1[i]);
-        }
-        free(M2); free(M2Inv);
-        free(M1MulM2Inv[0]); free(M1MulM2Inv[1]); free(M1MulM2Inv);
-        free(v); free(w); free(rv1); free(res1);
         return;
     }
 
     // Calculate the number of iterations needed to copy neighbor indices to shared memory
-    int ParGivenL = 64;  
-    int NumOfBlockForEachNodeL = 2; 
-
-    if( (SizeOfArr % ParGivenL) == 0 ){
-        NumberOfJump = SizeOfArr / ParGivenL;
+    if( (SizeOfArr % ParGivenLAbove14) == 0 ){
+        NumberOfJump = SizeOfArr / ParGivenLAbove14;
     }
     else{
-        NumberOfJump = SizeOfArr / ParGivenL + 1;
+        NumberOfJump = SizeOfArr / ParGivenLAbove14 + 1;
     }
 
     // Copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
-        if( ( threadIdx.x + cnt * ParGivenL ) < SizeOfArr){
-            G_Chunk[ threadIdx.x + cnt * ParGivenL ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL];
+        if( ( threadIdx.x + cnt * ParGivenLAbove14 ) < SizeOfArr){
+            G_Chunk[ threadIdx.x + cnt * ParGivenLAbove14 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenLAbove14];
         }
         __syncthreads();
     }
 
     // Calculate the total number of combinations for the conditioning set
     BINOM(SizeOfArr, order, &NumOfComb);
-    if( (NumOfComb % (ParGivenL * NumOfBlockForEachNodeL)) == 0 ){
-        NumOfGivenJump = NumOfComb / (ParGivenL * NumOfBlockForEachNodeL);
+    if( (NumOfComb % (ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14)) == 0 ){
+        NumOfGivenJump = NumOfComb / (ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14);
     }
     else{
-        NumOfGivenJump = NumOfComb / (ParGivenL * NumOfBlockForEachNodeL) + 1;
+        NumOfGivenJump = NumOfComb / (ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14) + 1;
     }
 
     // Main processing loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
-            // Free allocated memory
-            free(NbrIdxPointer);
-            free(NbrIdx);
-            free(M1[0]); free(M1[1]); free(M1);
-            for (int i = 0; i < order; i++) {
-                free(M2[i]); free(M2Inv[i]);
-                free(v[i]); free(res1[i]);
-            }
-            free(M2); free(M2Inv);
-            free(M1MulM2Inv[0]); free(M1MulM2Inv[1]); free(M1MulM2Inv);
-            free(v); free(w); free(rv1); free(res1);
             return;
         }
-        int combIdx = threadIdx.x + blockIdx.x * ParGivenL + d1 * ParGivenL * NumOfBlockForEachNodeL;
+        int combIdx = threadIdx.x + blockIdx.x * ParGivenLAbove14 + d1 * ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14;
         if(combIdx < NumOfComb){
             __syncthreads();
             NoEdgeFlag = 1;
@@ -3314,19 +3288,8 @@ __global__ void cal_Indep(
             }
         }
     }
-
-    // Free allocated memory
-    free(NbrIdxPointer);
-    free(NbrIdx);
-    free(M1[0]); free(M1[1]); free(M1);
-    for (int i = 0; i < order; i++) {
-        free(M2[i]); free(M2Inv[i]);
-        free(v[i]); free(res1[i]);
-    }
-    free(M2); free(M2Inv);
-    free(M1MulM2Inv[0]); free(M1MulM2Inv[1]); free(M1MulM2Inv);
-    free(v); free(w); free(rv1); free(res1);
 }
+
 
 
 
@@ -6483,7 +6446,7 @@ __device__ void pseudoinversel13(double M2[][13], double M2Inv[][13], double v[]
     
 }
 
-__device__ void pseudoinversel14(double M2[][14], double M2Inv[][14], double v[][14], double *rv1, double *w, double res1[][14] )
+__device__ void pseudoinversel14(double M2[][14], double M2Inv[][14], double v[][14], double *rv1, double *w, double res1[][14])
 {
     int m = 14;
     int flag, its,i, j, jj, k, l, nm;
@@ -6763,26 +6726,26 @@ __device__ void pseudoinversel14(double M2[][14], double M2Inv[][14], double v[]
 }
 
 // general pseudoinverse
-__device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][100], double *rv1, double *w, double res1[][100], int m)
+__device__ void pseudoinverse(double M2[][ML], double M2Inv[][ML], double v[][ML], double *rv1, double *w, double res1[][ML], int order)
 {
     int flag, its, i, j, jj, k, l, nm;
     double c, f, h, s, x, y, z;
     double anorm = 0.0, g = 0.0, scale = 0.0;
 
     /* Householder reduction to bidiagonal form */
-    for (i = 0; i < m; i++)
+    for (i = 0; i < order; i++)
     {
         /* Left-hand reduction */
         l = i + 1;
         rv1[i] = scale * g;
         g = s = scale = 0.0;
-        if (i < m)
+        if (i < order)
         {
-            for (k = i; k < m; k++)
+            for (k = i; k < order; k++)
                 scale += fabs(M2[k][i]);
             if (scale != 0.0)
             {
-                for (k = i; k < m; k++)
+                for (k = i; k < order; k++)
                 {
                     M2[k][i] /= scale;
                     s += M2[k][i] * M2[k][i];
@@ -6791,19 +6754,19 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
                 g = -SIGN(sqrt(s), f);
                 h = f * g - s;
                 M2[i][i] = f - g;
-                if (i != m - 1)
+                if (i != order - 1)
                 {
-                    for (j = l; j < m; j++)
+                    for (j = l; j < order; j++)
                     {
                         s = 0.0;
-                        for (k = i; k < m; k++)
+                        for (k = i; k < order; k++)
                             s += M2[k][i] * M2[k][j];
                         f = s / h;
-                        for (k = i; k < m; k++)
+                        for (k = i; k < order; k++)
                             M2[k][j] += f * M2[k][i];
                     }
                 }
-                for (k = i; k < m; k++)
+                for (k = i; k < order; k++)
                     M2[k][i] *= scale;
             }
         }
@@ -6811,13 +6774,13 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
 
         /* Right-hand reduction */
         g = s = scale = 0.0;
-        if (i < m && i != m - 1)
+        if (i < order && i != order - 1)
         {
-            for (k = l; k < m; k++)
+            for (k = l; k < order; k++)
                 scale += fabs(M2[i][k]);
             if (scale != 0.0)
             {
-                for (k = l; k < m; k++)
+                for (k = l; k < order; k++)
                 {
                     M2[i][k] /= scale;
                     s += M2[i][k] * M2[i][k];
@@ -6826,20 +6789,20 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
                 g = -SIGN(sqrt(s), f);
                 h = f * g - s;
                 M2[i][l] = f - g;
-                for (k = l; k < m; k++)
+                for (k = l; k < order; k++)
                     rv1[k] = M2[i][k] / h;
-                if (i != m - 1)
+                if (i != order - 1)
                 {
-                    for (j = l; j < m; j++)
+                    for (j = l; j < order; j++)
                     {
                         s = 0.0;
-                        for (k = l; k < m; k++)
+                        for (k = l; k < order; k++)
                             s += M2[j][k] * M2[i][k];
-                        for (k = l; k < m; k++)
+                        for (k = l; k < order; k++)
                             M2[j][k] += s * rv1[k];
                     }
                 }
-                for (k = l; k < m; k++)
+                for (k = l; k < order; k++)
                     M2[i][k] *= scale;
             }
         }
@@ -6847,25 +6810,25 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
     }
 
     /* Accumulate the right-hand transformation */
-    for (i = m - 1; i >= 0; i--)
+    for (i = order - 1; i >= 0; i--)
     {
         l = i + 1;
-        if (i < m - 1)
+        if (i < order - 1)
         {
             if (g != 0.0)
             {
-                for (j = l; j < m; j++)
+                for (j = l; j < order; j++)
                     v[j][i] = (M2[i][j] / M2[i][l]) / g;
-                for (j = l; j < m; j++)
+                for (j = l; j < order; j++)
                 {
                     s = 0.0;
-                    for (k = l; k < m; k++)
+                    for (k = l; k < order; k++)
                         s += M2[i][k] * v[k][j];
-                    for (k = l; k < m; k++)
+                    for (k = l; k < order; k++)
                         v[k][j] += s * v[k][i];
                 }
             }
-            for (j = l; j < m; j++)
+            for (j = l; j < order; j++)
                 v[i][j] = v[j][i] = 0.0;
         }
         v[i][i] = 1.0;
@@ -6873,41 +6836,41 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
     }
 
     /* Accumulate the left-hand transformation */
-    for (i = m - 1; i >= 0; i--)
+    for (i = order - 1; i >= 0; i--)
     {
         l = i + 1;
         g = w[i];
-        if (i < m - 1)
-            for (j = l; j < m; j++)
+        if (i < order - 1)
+            for (j = l; j < order; j++)
                 M2[i][j] = 0.0;
         if (g != 0.0)
         {
             g = 1.0 / g;
-            if (i != m - 1)
+            if (i != order - 1)
             {
-                for (j = l; j < m; j++)
+                for (j = l; j < order; j++)
                 {
                     s = 0.0;
-                    for (k = l; k < m; k++)
+                    for (k = l; k < order; k++)
                         s += M2[k][i] * M2[k][j];
                     f = (s / M2[i][i]) * g;
-                    for (k = i; k < m; k++)
+                    for (k = i; k < order; k++)
                         M2[k][j] += f * M2[k][i];
                 }
             }
-            for (j = i; j < m; j++)
+            for (j = i; j < order; j++)
                 M2[j][i] *= g;
         }
         else
         {
-            for (j = i; j < m; j++)
+            for (j = i; j < order; j++)
                 M2[j][i] = 0.0;
         }
         M2[i][i] += 1.0;
     }
 
     /* Diagonalize the bidiagonal form */
-    for (k = m - 1; k >= 0; k--)
+    for (k = order - 1; k >= 0; k--)
     {   /* Loop over singular values */
         for (its = 0; its < 30; its++)
         {   /* Loop over allowed iterations */
@@ -6938,7 +6901,7 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
                         h = 1.0 / h;
                         c = g * h;
                         s = -f * h;
-                        for (j = 0; j < m; j++)
+                        for (j = 0; j < order; j++)
                         {
                             y = M2[j][nm];
                             z = M2[j][i];
@@ -6954,7 +6917,7 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
                 if (z < 0.0)
                 {   /* Make singular value nonnegative */
                     w[k] = -z;
-                    for (j = 0; j < m; j++)
+                    for (j = 0; j < order; j++)
                         v[j][k] = -v[j][k];
                 }
                 break;
@@ -6992,7 +6955,7 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
                 g = g * c - x * s;
                 h = y * s;
                 y = y * c;
-                for (jj = 0; jj < m; jj++)
+                for (jj = 0; jj < order; jj++)
                 {
                     x = v[jj][j];
                     z = v[jj][i];
@@ -7009,7 +6972,7 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
                 }
                 f = c * g + s * y;
                 x = c * y - s * g;
-                for (jj = 0; jj < m; jj++)
+                for (jj = 0; jj < order; jj++)
                 {
                     y = M2[jj][j];
                     z = M2[jj][i];
@@ -7025,9 +6988,9 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
 
     /* Compute inverse matrix */
     // Compute res1 = v * (1 / w)
-    for (int rowNumber = 0; rowNumber < m; rowNumber++)
+    for (int rowNumber = 0; rowNumber < order; rowNumber++)
     {
-        for (int colNumber = 0; colNumber < m; colNumber++)
+        for (int colNumber = 0; colNumber < order; colNumber++)
         {
             if (w[colNumber] != 0.0)
                 res1[rowNumber][colNumber] = v[rowNumber][colNumber] / w[colNumber];
@@ -7037,12 +7000,12 @@ __device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][
     }
 
     // Compute M2Inv = res1 * M2^T
-    for (int rowNumber = 0; rowNumber < m; rowNumber++)
+    for (int rowNumber = 0; rowNumber < order; rowNumber++)
     {
-        for (int colNumber = 0; colNumber < m; colNumber++)
+        for (int colNumber = 0; colNumber < order; colNumber++)
         {
             M2Inv[rowNumber][colNumber] = 0.0;
-            for (int thirdIndex = 0; thirdIndex < m; thirdIndex++)
+            for (int thirdIndex = 0; thirdIndex < order; thirdIndex++)
             {
                 M2Inv[rowNumber][colNumber] += res1[rowNumber][thirdIndex] * M2[colNumber][thirdIndex];
             }

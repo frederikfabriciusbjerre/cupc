@@ -13,7 +13,7 @@ source("cuPCMI.R")
 set.seed(9)
 p <- 22
 prob_dag <- 0.55
-prob_miss <- 0.5
+prob_miss <- 0.1
 n <- 10000
 alpha <- 0.1
 max_order <- 5
@@ -22,8 +22,10 @@ max_order <- 5
 dag_true <- randomDAG(p, prob = prob_dag)
 cpdag_true <- dag2cpdag(dag_true)
 print(cpdag_true)
-data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3)
 
+# now scaled
+data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3) %>% scale()
+cor(data)
 # missing at random data 
 data_missing <- ampute(data, prop = prob_miss, 
                         mech = "MAR", 
@@ -31,7 +33,7 @@ data_missing <- ampute(data, prop = prob_miss,
 
 # naive mice imputation
 tic()
-imputed_data <- mice(data_missing, m = 10, method = 'pmm', printFlag = FALSE)
+imputed_data <- mice(data_missing, m = 10, method = 'pmm', printFlag = TRUE)
 toc()
 
 suffStatMI <- getSuffCU(imputed_data) 
@@ -56,7 +58,7 @@ cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
 
-cat("micdPC ord:", mi2cd_PC@max.ord, "\n")
+cat("micdPC ord:", micd_PC@max.ord, "\n")
 cat("cuPC ord:", micd_PC@max.ord, "\n")
 shdSkeleton <- function(fit1, fit2){
   graph1 <- fit1 %>% getGraph() %>% ugraph()
@@ -64,12 +66,12 @@ shdSkeleton <- function(fit1, fit2){
   return (shd(graph1, graph2))
 }
 
-if (require(Rgraphviz)) {
-  ## show estimated CPDAG
-  par(mfrow = c(1, 2))
-  plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
-  plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
-}
+# if (require(Rgraphviz)) {
+#   ## show estimated CPDAG
+#   par(mfrow = c(1, 2))
+#   plot(micd_PC, main = "Estimated CPDAG (micd_PC)")
+#   plot(cuPCMI_fit, main = "Estimated CPDAG (cuPC)")
+# }
 
 
 
@@ -83,7 +85,7 @@ sepset2 <- micd_PC@sepset         # Replace with your second sepset
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # # Print the dataframe
-# print(df_values_indices)
+print(df_values_indices)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 

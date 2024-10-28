@@ -46,6 +46,8 @@
 #define NumOfBlockForEachNodeL13 2
 #define ParGivenL14 64
 #define NumOfBlockForEachNodeL14 2
+#define ParGivenLAbove14 64
+#define NumOfBlockForEachNodeLAbove14 2
 #define ML 14
 #define MAX_M 100
 
@@ -65,6 +67,7 @@ __global__ void cal_Indepl11(double *C, int *G, int* GPrime, int *mutex, int* Se
 __global__ void cal_Indepl12(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl13(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
 __global__ void cal_Indepl14(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M);
+__global__ void cal_Indep(double *C, int *G, int* GPrime, int *mutex, int* Sepset, double* pMax, double alpha, int n, int nrows, int M, int order);
 __device__ void pseudoinversel2(double M2[][2], double M2Inv[][2]);
 __device__ void pseudoinversel3(double M2[][3], double M2Inv[][3]);
 __device__ void pseudoinversel4(double M2[][4], double M2Inv[][4], double v[][4], double *rv1, double *w, double res1[][4] );
@@ -78,6 +81,7 @@ __device__ void pseudoinversel11(double M2[][11], double M2Inv[][11], double v[]
 __device__ void pseudoinversel12(double M2[][12], double M2Inv[][12], double v[][12], double *rv1, double *w, double res1[][12] );
 __device__ void pseudoinversel13(double M2[][13], double M2Inv[][13], double v[][13], double *rv1, double *w, double res1[][13] );
 __device__ void pseudoinversel14(double M2[][14], double M2Inv[][14], double v[][14], double *rv1, double *w, double res1[][14] );
+__device__ void pseudoinverse(double M2[][ML], double M2Inv[][ML], double v[][ML], double *rv1, double *w, double res1[][ML], int order);
 extern "C" void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet);
 
 __global__ void Initialize (int *Mat, int n);

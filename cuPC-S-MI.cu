@@ -3073,6 +3073,261 @@ __global__ void cal_Indepl14(
     }
 }
 
+#define MAX_M 100  // Adjust as needed
+
+__global__ void cal_Indep(
+    double *C,       // Correlation matrices (flattened, size M x n x n)
+    int *G,          // Adjacency matrix of the graph (size n x n)
+    int *GPrime,     // Neighbor list or compressed adjacency representation
+    int *mutex,      // Mutex array for atomic operations (size n x n)
+    int *Sepset,     // Separation set matrix (size n x n x ML)
+    double *pMax,    // Maximum p-values (size n x n)
+    double alpha,    // Significance level for the statistical test
+    int n,           // Number of variables (nodes)
+    int nrows,       // Number of samples (observations)
+    int M,           // Number of imputations (imputed datasets)
+    int order        // The order of the conditioning set
+)
+{
+    // Variable declarations
+    int YIdx;
+    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int SizeOfArr;
+    int NumberOfJump;
+    int NumOfGivenJump;
+    int NumOfComb;
+    __shared__ int NoEdgeFlag;
+    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+
+    // Variables for multiple imputations
+    double z_m[MAX_M];          // Z values for each imputation
+    double M0_m;
+    double rho_m;
+    double p_val;
+
+    // Dynamic allocation of arrays based on 'order'
+    int *NbrIdxPointer = (int*)malloc(order * sizeof(int));
+    int *NbrIdx = (int*)malloc(order * sizeof(int));
+
+    double **M1 = (double**)malloc(2 * sizeof(double*));
+    M1[0] = (double*)malloc(order * sizeof(double));
+    M1[1] = (double*)malloc(order * sizeof(double));
+
+    double **M2 = (double**)malloc(order * sizeof(double*));
+    double **M2Inv = (double**)malloc(order * sizeof(double*));
+    for (int i = 0; i < order; i++) {
+        M2[i] = (double*)malloc(order * sizeof(double));
+        M2Inv[i] = (double*)malloc(order * sizeof(double));
+    }
+
+    double **M1MulM2Inv = (double**)malloc(2 * sizeof(double*));
+    M1MulM2Inv[0] = (double*)malloc(order * sizeof(double));
+    M1MulM2Inv[1] = (double*)malloc(order * sizeof(double));
+
+    double H[2][2];
+
+    // Variables for SVD pseudoinverse
+    double **v = (double**)malloc(order * sizeof(double*));
+    for (int i = 0; i < order; i++) {
+        v[i] = (double*)malloc(order * sizeof(double));
+    }
+    double *w = (double*)malloc(order * sizeof(double));
+    double *rv1 = (double*)malloc(order * sizeof(double));
+    double **res1 = (double**)malloc(order * sizeof(double*));
+    for (int i = 0; i < order; i++) {
+        res1[i] = (double*)malloc(order * sizeof(double));
+    }
+
+    int ord = order;  // Order of the conditioning set
+
+    // Initialize NoEdgeFlag
+    NoEdgeFlag = 0;
+
+    // Get the number of neighbors for node X
+    SizeOfArr = GPrime[XIdx * n + n - 1];
+    if (SizeOfArr <= order){
+        // Free allocated memory
+        free(NbrIdxPointer);
+        free(NbrIdx);
+        free(M1[0]); free(M1[1]); free(M1);
+        for (int i = 0; i < order; i++) {
+            free(M2[i]); free(M2Inv[i]);
+            free(v[i]); free(res1[i]);
+        }
+        free(M2); free(M2Inv);
+        free(M1MulM2Inv[0]); free(M1MulM2Inv[1]); free(M1MulM2Inv);
+        free(v); free(w); free(rv1); free(res1);
+        return;
+    }
+
+    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    int ParGivenL = 64;  
+    int NumOfBlockForEachNodeL = 2; 
+
+    if( (SizeOfArr % ParGivenL) == 0 ){
+        NumberOfJump = SizeOfArr / ParGivenL;
+    }
+    else{
+        NumberOfJump = SizeOfArr / ParGivenL + 1;
+    }
+
+    // Copy neighbor indices from global memory to shared memory
+    for (int cnt = 0; cnt < NumberOfJump; cnt++){
+        if( ( threadIdx.x + cnt * ParGivenL ) < SizeOfArr){
+            G_Chunk[ threadIdx.x + cnt * ParGivenL ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL];
+        }
+        __syncthreads();
+    }
+
+    // Calculate the total number of combinations for the conditioning set
+    BINOM(SizeOfArr, order, &NumOfComb);
+    if( (NumOfComb % (ParGivenL * NumOfBlockForEachNodeL)) == 0 ){
+        NumOfGivenJump = NumOfComb / (ParGivenL * NumOfBlockForEachNodeL);
+    }
+    else{
+        NumOfGivenJump = NumOfComb / (ParGivenL * NumOfBlockForEachNodeL) + 1;
+    }
+
+    // Main processing loop
+    for(int d1 = 0; d1 < NumOfGivenJump; d1++){
+        __syncthreads();
+        if(NoEdgeFlag == 1){
+            // Free allocated memory
+            free(NbrIdxPointer);
+            free(NbrIdx);
+            free(M1[0]); free(M1[1]); free(M1);
+            for (int i = 0; i < order; i++) {
+                free(M2[i]); free(M2Inv[i]);
+                free(v[i]); free(res1[i]);
+            }
+            free(M2); free(M2Inv);
+            free(M1MulM2Inv[0]); free(M1MulM2Inv[1]); free(M1MulM2Inv);
+            free(v); free(w); free(rv1); free(res1);
+            return;
+        }
+        int combIdx = threadIdx.x + blockIdx.x * ParGivenL + d1 * ParGivenL * NumOfBlockForEachNodeL;
+        if(combIdx < NumOfComb){
+            __syncthreads();
+            NoEdgeFlag = 1;
+            __syncthreads();
+            // Get indices of the combination
+            IthCombination(NbrIdxPointer, SizeOfArr, order, combIdx + 1);
+            for(int tmp = 0; tmp < order; tmp++){
+                NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
+            }
+
+            // Loop over other neighbors
+            for(int d2 = 0; d2 < SizeOfArr; d2++){
+                bool skip = false;
+                for (int idx = 0; idx < order; idx++) {
+                    if (d2 == (NbrIdxPointer[idx] - 1)) {
+                        skip = true;
+                        break;
+                    }
+                }
+                if (skip) continue;
+
+                YIdx = G_Chunk[d2];
+                if (G[XIdx * n + YIdx] == 1) {
+                    NoEdgeFlag = 0;
+
+                    // Loop over all M imputations
+                    for (int m = 0; m < M; m++) {
+                        // Compute M0_m
+                        M0_m = C[m * n * n + XIdx * n + YIdx];
+
+                        // Compute M1 matrices
+                        for (int c1 = 0; c1 < order; c1++){
+                            M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
+                            M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
+                        }
+
+                        // Compute M2 matrix
+                        for (int c1 = 0; c1 < order; c1++){
+                            for(int c2 = 0; c2 < order; c2++){
+                                if(c1 > c2){
+                                    M2[c1][c2] = M2[c2][c1];
+                                }
+                                else if(c1 == c2){
+                                    M2[c1][c1] = 1.0;
+                                }
+                                else{
+                                    M2[c1][c2] = C[m * n * n + NbrIdx[c1] * n + NbrIdx[c2]];
+                                }
+                            }
+                        }
+
+                        // Compute pseudoinverse of M2
+                        pseudoinverse(M2, M2Inv, v, rv1, w, res1, order);
+
+                        // Compute M1 * M2Inv
+                        for (int c1 = 0; c1 < 2; c1++)
+                        {
+                            for (int c2 = 0; c2 < order; c2++)
+                            {
+                                M1MulM2Inv[c1][c2] = 0.0;
+                                for (int c3 = 0; c3 < order; c3++)
+                                    M1MulM2Inv[c1][c2] += M1[c1][c3] * M2Inv[c3][c2];
+                            }
+                        }
+
+                        // Compute H matrix
+                        for (int c1 = 0; c1 < 2; c1++)
+                        {
+                            for (int c2 = 0; c2 < 2; c2++)
+                            {
+                                H[c1][c2] = 0.0;
+                                for (int c3 = 0; c3 < order; c3++)
+                                    H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
+                            }
+                        }
+                        // Adjust H matrix
+                        H[0][0] = 1.0 - H[0][0];
+                        H[0][1] = M0_m - H[0][1];
+                        H[1][1] = 1.0 - H[1][1];
+
+                        // Compute partial correlation rho_m using the updated formula
+                        rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
+
+                        // Fisher Z-transformation using the updated formula
+                        double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
+                        z_m[m] = Z_m;
+                    }
+
+                    // Compute combined p-value
+                    p_val = compute_MI_p_value(z_m, M, nrows, ord);
+
+                    if (p_val >= alpha){
+                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
+                            // Remove the edge between X and Y
+                            G[XIdx * n + YIdx] = 0;
+                            G[YIdx * n + XIdx] = 0;
+                            // Store the maximum p-value
+                            pMax[XIdx * n + YIdx] = p_val;
+                            // Store the separation set
+                            for (int idx = 0; idx < order; idx++) {
+                                Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Free allocated memory
+    free(NbrIdxPointer);
+    free(NbrIdx);
+    free(M1[0]); free(M1[1]); free(M1);
+    for (int i = 0; i < order; i++) {
+        free(M2[i]); free(M2Inv[i]);
+        free(v[i]); free(res1[i]);
+    }
+    free(M2); free(M2Inv);
+    free(M1MulM2Inv[0]); free(M1MulM2Inv[1]); free(M1MulM2Inv);
+    free(v); free(w); free(rv1); free(res1);
+}
+
 
 
 __global__ void Scan (int* G_ScanOut, int* G_ScanIn, int Step, int GSize){
@@ -6505,6 +6760,294 @@ __device__ void pseudoinversel14(double M2[][14], double M2Inv[][14], double v[]
         }
     }
     
+}
+
+// general pseudoinverse
+__device__ void pseudoinverse(double M2[][100], double M2Inv[][100], double v[][100], double *rv1, double *w, double res1[][100], int m)
+{
+    int flag, its, i, j, jj, k, l, nm;
+    double c, f, h, s, x, y, z;
+    double anorm = 0.0, g = 0.0, scale = 0.0;
+
+    /* Householder reduction to bidiagonal form */
+    for (i = 0; i < m; i++)
+    {
+        /* Left-hand reduction */
+        l = i + 1;
+        rv1[i] = scale * g;
+        g = s = scale = 0.0;
+        if (i < m)
+        {
+            for (k = i; k < m; k++)
+                scale += fabs(M2[k][i]);
+            if (scale != 0.0)
+            {
+                for (k = i; k < m; k++)
+                {
+                    M2[k][i] /= scale;
+                    s += M2[k][i] * M2[k][i];
+                }
+                f = M2[i][i];
+                g = -SIGN(sqrt(s), f);
+                h = f * g - s;
+                M2[i][i] = f - g;
+                if (i != m - 1)
+                {
+                    for (j = l; j < m; j++)
+                    {
+                        s = 0.0;
+                        for (k = i; k < m; k++)
+                            s += M2[k][i] * M2[k][j];
+                        f = s / h;
+                        for (k = i; k < m; k++)
+                            M2[k][j] += f * M2[k][i];
+                    }
+                }
+                for (k = i; k < m; k++)
+                    M2[k][i] *= scale;
+            }
+        }
+        w[i] = scale * g;
+
+        /* Right-hand reduction */
+        g = s = scale = 0.0;
+        if (i < m && i != m - 1)
+        {
+            for (k = l; k < m; k++)
+                scale += fabs(M2[i][k]);
+            if (scale != 0.0)
+            {
+                for (k = l; k < m; k++)
+                {
+                    M2[i][k] /= scale;
+                    s += M2[i][k] * M2[i][k];
+                }
+                f = M2[i][l];
+                g = -SIGN(sqrt(s), f);
+                h = f * g - s;
+                M2[i][l] = f - g;
+                for (k = l; k < m; k++)
+                    rv1[k] = M2[i][k] / h;
+                if (i != m - 1)
+                {
+                    for (j = l; j < m; j++)
+                    {
+                        s = 0.0;
+                        for (k = l; k < m; k++)
+                            s += M2[j][k] * M2[i][k];
+                        for (k = l; k < m; k++)
+                            M2[j][k] += s * rv1[k];
+                    }
+                }
+                for (k = l; k < m; k++)
+                    M2[i][k] *= scale;
+            }
+        }
+        anorm = MAX(anorm, fabs(w[i]) + fabs(rv1[i]));
+    }
+
+    /* Accumulate the right-hand transformation */
+    for (i = m - 1; i >= 0; i--)
+    {
+        l = i + 1;
+        if (i < m - 1)
+        {
+            if (g != 0.0)
+            {
+                for (j = l; j < m; j++)
+                    v[j][i] = (M2[i][j] / M2[i][l]) / g;
+                for (j = l; j < m; j++)
+                {
+                    s = 0.0;
+                    for (k = l; k < m; k++)
+                        s += M2[i][k] * v[k][j];
+                    for (k = l; k < m; k++)
+                        v[k][j] += s * v[k][i];
+                }
+            }
+            for (j = l; j < m; j++)
+                v[i][j] = v[j][i] = 0.0;
+        }
+        v[i][i] = 1.0;
+        g = rv1[i];
+    }
+
+    /* Accumulate the left-hand transformation */
+    for (i = m - 1; i >= 0; i--)
+    {
+        l = i + 1;
+        g = w[i];
+        if (i < m - 1)
+            for (j = l; j < m; j++)
+                M2[i][j] = 0.0;
+        if (g != 0.0)
+        {
+            g = 1.0 / g;
+            if (i != m - 1)
+            {
+                for (j = l; j < m; j++)
+                {
+                    s = 0.0;
+                    for (k = l; k < m; k++)
+                        s += M2[k][i] * M2[k][j];
+                    f = (s / M2[i][i]) * g;
+                    for (k = i; k < m; k++)
+                        M2[k][j] += f * M2[k][i];
+                }
+            }
+            for (j = i; j < m; j++)
+                M2[j][i] *= g;
+        }
+        else
+        {
+            for (j = i; j < m; j++)
+                M2[j][i] = 0.0;
+        }
+        M2[i][i] += 1.0;
+    }
+
+    /* Diagonalize the bidiagonal form */
+    for (k = m - 1; k >= 0; k--)
+    {   /* Loop over singular values */
+        for (its = 0; its < 30; its++)
+        {   /* Loop over allowed iterations */
+            flag = 1;
+            for (l = k; l >= 0; l--)
+            {   /* Test for splitting */
+                nm = l - 1;
+                if (fabs(rv1[l]) + anorm == anorm)
+                {
+                    flag = 0;
+                    break;
+                }
+                if (nm >= 0 && (fabs(w[nm]) + anorm == anorm))
+                    break;
+            }
+            if (flag)
+            {
+                c = 0.0;
+                s = 1.0;
+                for (i = l; i <= k; i++)
+                {
+                    f = s * rv1[i];
+                    if (fabs(f) + anorm != anorm)
+                    {
+                        g = w[i];
+                        h = PYTHAG(f, g);
+                        w[i] = h;
+                        h = 1.0 / h;
+                        c = g * h;
+                        s = -f * h;
+                        for (j = 0; j < m; j++)
+                        {
+                            y = M2[j][nm];
+                            z = M2[j][i];
+                            M2[j][nm] = y * c + z * s;
+                            M2[j][i] = z * c - y * s;
+                        }
+                    }
+                }
+            }
+            z = w[k];
+            if (l == k)
+            {   /* Convergence */
+                if (z < 0.0)
+                {   /* Make singular value nonnegative */
+                    w[k] = -z;
+                    for (j = 0; j < m; j++)
+                        v[j][k] = -v[j][k];
+                }
+                break;
+            }
+            if (its >= 30)
+            {
+                printf("Not converged\n");
+                break;
+            }
+
+            /* Shift from bottom 2 x 2 minor */
+            x = w[l];
+            nm = k - 1;
+            y = w[nm];
+            g = rv1[nm];
+            h = rv1[k];
+            f = ((y - z)*(y + z) + (g - h)*(g + h)) / (2.0 * h * y);
+            g = PYTHAG(f, 1.0);
+            f = ((x - z)*(x + z) + h * (y / (f + SIGN(g, f)) - h)) / x;
+
+            /* Next QR transformation */
+            c = s = 1.0;
+            for (j = l; j <= nm; j++)
+            {
+                i = j + 1;
+                g = rv1[i];
+                y = w[i];
+                h = s * g;
+                g = c * g;
+                z = PYTHAG(f, h);
+                rv1[j] = z;
+                c = f / z;
+                s = h / z;
+                f = x * c + g * s;
+                g = g * c - x * s;
+                h = y * s;
+                y = y * c;
+                for (jj = 0; jj < m; jj++)
+                {
+                    x = v[jj][j];
+                    z = v[jj][i];
+                    v[jj][j] = x * c + z * s;
+                    v[jj][i] = z * c - x * s;
+                }
+                z = PYTHAG(f, h);
+                w[j] = z;
+                if (z != 0.0)
+                {
+                    z = 1.0 / z;
+                    c = f * z;
+                    s = h * z;
+                }
+                f = c * g + s * y;
+                x = c * y - s * g;
+                for (jj = 0; jj < m; jj++)
+                {
+                    y = M2[jj][j];
+                    z = M2[jj][i];
+                    M2[jj][j] = y * c + z * s;
+                    M2[jj][i] = z * c - y * s;
+                }
+            }
+            rv1[l] = 0.0;
+            rv1[k] = f;
+            w[k] = x;
+        }
+    }
+
+    /* Compute inverse matrix */
+    // Compute res1 = v * (1 / w)
+    for (int rowNumber = 0; rowNumber < m; rowNumber++)
+    {
+        for (int colNumber = 0; colNumber < m; colNumber++)
+        {
+            if (w[colNumber] != 0.0)
+                res1[rowNumber][colNumber] = v[rowNumber][colNumber] / w[colNumber];
+            else
+                res1[rowNumber][colNumber] = 0.0;
+        }
+    }
+
+    // Compute M2Inv = res1 * M2^T
+    for (int rowNumber = 0; rowNumber < m; rowNumber++)
+    {
+        for (int colNumber = 0; colNumber < m; colNumber++)
+        {
+            M2Inv[rowNumber][colNumber] = 0.0;
+            for (int thirdIndex = 0; thirdIndex < m; thirdIndex++)
+            {
+                M2Inv[rowNumber][colNumber] += res1[rowNumber][thirdIndex] * M2[colNumber][thirdIndex];
+            }
+        }
+    }
 }
 
 __global__ void scan_compact(int* G_Compact, const int* G, const int n, int *nprime){

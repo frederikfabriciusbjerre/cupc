@@ -90,7 +90,7 @@ gaussMItest <- function (x, y, S, suffStat) {
   # 7. pvalue
   pvalue <- 2 * stats::pt(abs(ts), df = df, lower.tail = FALSE)
   cat("z_m values: ")
-  for (m in 1:length(z)) {
+  for (m in seq_along(z)) {
      cat(sprintf("%f ", z[m]))
   }
   cat("\n")

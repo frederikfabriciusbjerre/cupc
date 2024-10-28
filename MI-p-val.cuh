@@ -22,7 +22,7 @@ __device__ double compute_MI_p_value(const double* z_m, int M, int nrows, int or
         double diff = z_m[m] - avgz;
         B_sum += diff * diff;
     }
-    double B = B_sum / (M - 1);
+    double B = B_sum / (M - 1.0);
 
     // calculate total variance
     double TV = W + (1.0 + 1.0 / M) * B;

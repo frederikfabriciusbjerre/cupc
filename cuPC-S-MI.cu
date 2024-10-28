@@ -242,11 +242,10 @@ __global__ void cal_Indepl0(
 {
     int row = blockDim.x * bx + tx;
     int col = blockDim.y * by + ty;
-
+    double z_m[MAX_M];
+    double p_val;
+    int ord = 0;
     if(row < col && col < n){
-        double z_m[MAX_M]; 
-        double z_sum = 0.0;
-
         // Loop over all M imputations
         for (int m = 0; m < M; m++) {
             // Compute the index into the 1D C array
@@ -257,45 +256,16 @@ __global__ void cal_Indepl0(
             res_m = 0.5 * log((1 + res_m) / (1 - res_m));
             
             z_m[m] = res_m;
-            z_sum += res_m;
         }
-        // Compute average z-value across imputations
-        double avgz = z_sum / M;
-        // within-imp variance W
-        // Since length(S) = 0 (no conditioning set), W = 1 / (n - 3)
-        double W = 1.0 / (nrows - 3);
-
-        // between imp variance, assumes M not 0
-        double B_sum = 0.0;
-        for (int m = 0; m < M; m++) {
-            double diff = z_m[m] - avgz;
-            B_sum += diff * diff;
-        }
-        double B = B_sum / (M - 1);
-        double TV = W + (1.0 + 1.0 / M) * B;
-
-        double ts = avgz / sqrt(TV);
-
-        // Compute degrees of freedom df
-        double temp;
-        double df;
         
-        if (B > 1e-10){
-            temp = (W / B) * (M / (M + 1.0));
-            df = (M - 1) * (1.0 + temp) * (1.0 + temp); 
-        }
-        else {
-            df = INFINITY ;
-        }
-        double p_val = 2.0 * (1.0 - pt(ts, df));
+        p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
         // Compute p-value using the cumulative t-distribution function
         if (p_val >= alpha) {
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
-            // Sepset[(row * n + col) * ML] = -1; // todo
-
+            Sepset[(row * n + col) * ML] = 0; // todo
         } else {
             G[row * n + col] = 1;
             G[col * n + row] = 1;

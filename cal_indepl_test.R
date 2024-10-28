@@ -14,7 +14,7 @@ set.seed(9)
 p <- 22
 prob_dag <- 0.25
 prob_miss <- 0.1
-n <- 10000
+n <- 1000
 alpha <- 0.1
 max_order <- 10
 
@@ -33,7 +33,7 @@ data_missing <- ampute(data, prop = prob_miss,
 
 # naive mice imputation
 tic()
-imputed_data <- mice(data_missing, m = 10, method = 'norm', printFlag = TRUE)
+imputed_data <- mice(data_missing, m = 10, method = 'norm', printFlag = FALSE)
 toc()
 
 suffStatMI <- getSuffCU(imputed_data) 
@@ -80,8 +80,6 @@ shdSkeleton <- function(fit1, fit2){
 source("printfunc.R")
 sepset1 <- cuPCMI_fit@sepset
 sepset2 <- micd_PC@sepset
-findDiffIndexes(sepset1, sepset2)
-
 
 # Flatten the two sepsets into a dataframe
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)

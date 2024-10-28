@@ -160,9 +160,13 @@ handle_union <- function(x, y) {
   if (is.null(y)) {
     return(x)
   }
-  # return integer(0) is both are integer(0) or if one of them is
+  # return integer(0) if either or both are integer(0)
   if (identical(x, integer(0)) || identical(y, integer(0))) {
     return(integer(0))
+  }
+    # return integer(0) if either or both are integer(0)
+  if (identical(x, 0) || identical(y, 0)) {
+    return(0)
   }
   # else combine them 
   combined <- union(x, y)

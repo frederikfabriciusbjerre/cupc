@@ -101,3 +101,70 @@ flatten_two_sepsets_with_indices <- function(sepset1, sepset2, exclude_both_na =
   
   return(df)
 }
+
+
+findDiffIndexes <- function(lst1, lst2){
+  # make lists symmetric (like symmetric matrix)
+  lst1 <- makeSymmetric(lst1)
+  lst2 <- makeSymmetric(lst2)
+  
+  # init index list 
+  differences <- list()
+  n <- length(lst1)
+  
+  # check if they are comparable
+  if (n != length(lst2)){
+    cat("lists are not of same length")
+    return(FALSE)
+  }
+  # compare only the upper triangular elements, including the diagonal
+  for (i in seq_len(n)) {
+    for (j in i:n) {
+      if (!identical(lst1[[i]][[j]], lst2[[i]][[j]])) {
+        differences <- append(differences, list(c(i, j)))
+      }
+    }
+  }
+  return(differences)
+}
+
+makeSymmetric <- function(lst){
+  # assumes nxn list of lists
+  for (i in seq_along(lst)){
+    for (j in seq_along(lst)){
+      elm.ij <- lst[[i]][[j]]
+      elm.ji <- lst[[j]][[i]]
+      if (identical(elm.ij, elm.ji) && !is.null(elm.ij) && !is.null(elm.ji)) {
+        elm <- elm.ij
+      }
+      else{
+        elm <- handle_union(elm.ij, elm.ji)
+      }
+      # set both to elm
+      lst[[i]][[j]] <- elm
+    }
+  }
+  return (lst)
+}
+
+handle_union <- function(x, y) {
+  # return NULL if both is NULL
+  if (is.null(x) && is.null(y)) {
+    return(NA)
+  }
+  # return y if x is NULL
+  if (is.null(x)) {
+    return(y)
+  }
+  # return x if y is NULL
+  if (is.null(y)) {
+    return(x)
+  }
+  # return integer(0) is both are integer(0) or if one of them is
+  if (identical(x, integer(0)) || identical(y, integer(0))) {
+    return(integer(0))
+  }
+  # else combine them 
+  combined <- union(x, y)
+  return(combined)
+}

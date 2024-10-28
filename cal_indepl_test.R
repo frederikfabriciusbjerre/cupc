@@ -76,10 +76,12 @@ shdSkeleton <- function(fit1, fit2){
 
 
 source("printfunc.R")
-# Example usage:
-# Assuming 'sepset1' and 'sepset2' are your two nested lists
 sepset1 <- cuPCMI_fit@sepset      # Replace with your first sepset
 sepset2 <- micd_PC@sepset         # Replace with your second sepset
+findDiffIndexes(sepset1, sepset2)
+# Example usage:
+# Assuming 'sepset1' and 'sepset2' are your two nested lists
+
 
 # Flatten the two sepsets into a dataframe
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)

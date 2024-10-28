@@ -14,9 +14,9 @@ set.seed(9)
 p <- 22
 prob_dag <- 0.25
 prob_miss <- 0.1
-n <- 1000
+n <- 10000
 alpha <- 0.1
-max_order <- 10
+max_order <- 5
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)
@@ -24,7 +24,7 @@ cpdag_true <- dag2cpdag(dag_true)
 print(cpdag_true)
 
 # now scaled
-data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3) #%>% scale()
+data <- rmvDAG(n, dag_true, errDist = "normal", mix = 0.3) %>% scale()
 
 # missing at random data 
 data_missing <- ampute(data, prop = prob_miss, 
@@ -33,7 +33,7 @@ data_missing <- ampute(data, prop = prob_miss,
 
 # naive mice imputation
 tic()
-imputed_data <- mice(data_missing, m = 10, method = 'norm', printFlag = FALSE)
+imputed_data <- mice(data_missing, m = 10, method = "norm", printFlag = FALSE)
 toc()
 
 suffStatMI <- getSuffCU(imputed_data) 
@@ -85,7 +85,7 @@ sepset2 <- micd_PC@sepset
 df_values_indices <- flatten_two_sepsets_with_indices(sepset1, sepset2)
 
 # # Print the dataframe
-print(df_values_indices)
+# print(df_values_indices)
 # source("gaussMItestPrint.R")
 # gaussMItest(10, 9, c(4,7,8,12), suffStatMICD)
 

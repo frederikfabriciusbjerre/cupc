@@ -265,7 +265,7 @@ __global__ void cal_Indepl0(
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
-            Sepset[(row * n + col) * ML] = 0; // todo
+            Sepset[(row * n + col) * ML] = 0; 
         } else {
             G[row * n + col] = 1;
             G[col * n + row] = 1;

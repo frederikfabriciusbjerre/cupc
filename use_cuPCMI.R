@@ -19,18 +19,21 @@ suffStatMI <- getSuffCU(imputed_data)
 
 # input params to pc
 p <- imputed_data[[1]] %>% length()
-alpha <- 0.995
+alpha <- 0.875
 max_order <- 20
 
+cat("Fitting with alpha =", alpha, "\n")
 tic()
 cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
-print("The total time consumed by cuPCMI is:")
-toc()
 cat("\n")
 cat("cuPCMI\n")
 print(cuPCMI_fit)
 cat("\n")
-cat("cuPC ord:", cuPCMI_fit@max.ord, "\n")
+cat("cuPC ord =", cuPCMI_fit@max.ord, "\n")
+cat("alpha    =", alpha, "\n\n")
+cat("Time consumed:\n")
+toc()
+cat("\n")
 
 # suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 # tic()

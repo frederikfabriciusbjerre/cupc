@@ -169,4 +169,3 @@ __device__ float ptf(double t, double df) {
 }
 
 #endif // PT_DEVICE_CUH
-#endif // PT_DEVICE_CUH

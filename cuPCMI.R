@@ -127,36 +127,31 @@ cu_skeleton_MI <- function(suffStat, indepTest, alpha, labels, p, m.max = Inf, N
     )
 
     ord <- z$l
-    print(ord)
     G <- (matrix(z$G, nrow = p, ncol = p)) > 0
 
     pMax <- (matrix(z$pmax, nrow = p, ncol = p))
     pMax[which(pMax == -100000)] <- -Inf
-    if (ord <= 32) {
-        sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 32, ncol = p^2))
-        #print(sepsetMatrix)
-        index_of_cuted_edge <- row(sepsetMatrix)[which(sepsetMatrix != -1)]
-        for (i in index_of_cuted_edge) {
-            edge_idx <- i - 1  # Adjust for R's 1-based indexing
-            x <- (edge_idx %% p) + 1
-            y <- (edge_idx %/% p) + 1
 
-            # Find the last non -1 entry in the sepset row
-            sepset_entries <- sepsetMatrix[i, ]
-            #cat("x", x, "y", y, "sepset_entries", sepset_entries, "\n")
-            valid_entries <- sepset_entries[sepset_entries != -1]
+    sepsetMatrix <- t(matrix(z$sepsetmat, nrow = 32, ncol = p^2))
+    #print(sepsetMatrix)
+    index_of_cuted_edge <- row(sepsetMatrix)[which(sepsetMatrix != -1)]
+    for (i in index_of_cuted_edge) {
+        edge_idx <- i - 1  # Adjust for R's 1-based indexing
+        x <- (edge_idx %% p) + 1
+        y <- (edge_idx %/% p) + 1
 
-            # Assign the separation set
-            # sepset[[x]][[y]] <- sepset[[y]][[x]] <- valid_entries + 1
-            sepset[[x]][[y]] <- if (any(valid_entries == 0)) {
-                                    integer(0)
-                                } else {
-                                    valid_entries
-                                }
-    }
-    } else {
-        # TODO: Update sepset for more than 32 levels
-        # don't think we need this, but keep it for now
+        # Find the last non -1 entry in the sepset row
+        sepset_entries <- sepsetMatrix[i, ]
+        #cat("x", x, "y", y, "sepset_entries", sepset_entries, "\n")
+        valid_entries <- sepset_entries[sepset_entries != -1]
+
+        # Assign the separation set
+        # sepset[[x]][[y]] <- sepset[[y]][[x]] <- valid_entries + 1
+        sepset[[x]][[y]] <- if (any(valid_entries == 0)) {
+                                integer(0)
+                            } else {
+                                valid_entries
+                            }
     }
 
     # print(ord)

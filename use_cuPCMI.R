@@ -6,6 +6,7 @@ library(tictoc)
 library(igraph)
 library(mice)
 library(micd)
+library(miceadds)
 
 source("cuPCMI.R")
 
@@ -18,8 +19,8 @@ suffStatMI <- getSuffCU(imputed_data)
 
 # input params to pc
 p <- imputed_data[[1]] %>% length()
-alpha <- 0.99
-max_order <- 10
+alpha <- 0.995
+max_order <- 20
 
 tic()
 cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
@@ -40,3 +41,4 @@ cat("cuPC ord:", cuPCMI_fit@max.ord, "\n")
 # cat("micd_PC\n")
 # print(micd_PC)
 # cat("\n")
+# cat("cuPC ord:", micd_PC@max.ord, "\n")

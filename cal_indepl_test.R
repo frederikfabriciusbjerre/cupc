@@ -11,12 +11,12 @@ source("cuPC.R")
 source("cuPCMI.R")
 
 set.seed(9)
-p <- 30
-prob_dag <- 0.1
+p <- 35
+prob_dag <- 0.05
 prob_miss <- 0.1
 n <- 1000
-alpha <- 0.995
-max_order <- 20
+alpha <- 0.99
+max_order <- 15
 
 # Simulate random DAG and data
 dag_true <- randomDAG(p, prob = prob_dag)

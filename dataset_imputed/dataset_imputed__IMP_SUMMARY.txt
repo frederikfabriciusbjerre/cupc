@@ -1,0 +1,220 @@
+2024-10-29 11:08:13.589918 
+
+ /home/freddy-spaghetti/uni/cupc/dataset_imputed 
+
+Class: mids
+Number of multiple imputations:  10 
+Imputation methods:
+    V1     V2     V3     V4     V5     V6     V7     V8     V9    V10    V11 
+"norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" 
+   V12    V13    V14    V15    V16    V17    V18    V19    V20    V21    V22 
+"norm" "norm"     "" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" 
+   V23    V24    V25    V26    V27    V28    V29    V30 
+"norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" 
+PredictorMatrix:
+   V1 V2 V3 V4 V5 V6 V7 V8 V9 V10 V11 V12 V13 V14 V15 V16 V17 V18 V19 V20 V21
+V1  0  1  1  1  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V2  1  0  1  1  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V3  1  1  0  1  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V4  1  1  1  0  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V5  1  1  1  1  0  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V6  1  1  1  1  1  0  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+   V22 V23 V24 V25 V26 V27 V28 V29 V30
+V1   1   1   1   1   1   1   1   1   1
+V2   1   1   1   1   1   1   1   1   1
+V3   1   1   1   1   1   1   1   1   1
+V4   1   1   1   1   1   1   1   1   1
+V5   1   1   1   1   1   1   1   1   1
+V6   1   1   1   1   1   1   1   1   1
+Class: mids
+Number of multiple imputations:  10 
+Imputation methods:
+    V1     V2     V3     V4     V5     V6     V7     V8     V9    V10    V11 
+"norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" 
+   V12    V13    V14    V15    V16    V17    V18    V19    V20    V21    V22 
+"norm" "norm"     "" "norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" 
+   V23    V24    V25    V26    V27    V28    V29    V30 
+"norm" "norm" "norm" "norm" "norm" "norm" "norm" "norm" 
+PredictorMatrix:
+   V1 V2 V3 V4 V5 V6 V7 V8 V9 V10 V11 V12 V13 V14 V15 V16 V17 V18 V19 V20 V21
+V1  0  1  1  1  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V2  1  0  1  1  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V3  1  1  0  1  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V4  1  1  1  0  1  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V5  1  1  1  1  0  1  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+V6  1  1  1  1  1  0  1  1  1   1   1   1   1   1   1   1   1   1   1   1   1
+   V22 V23 V24 V25 V26 V27 V28 V29 V30
+V1   1   1   1   1   1   1   1   1   1
+V2   1   1   1   1   1   1   1   1   1
+V3   1   1   1   1   1   1   1   1   1
+V4   1   1   1   1   1   1   1   1   1
+V5   1   1   1   1   1   1   1   1   1
+V6   1   1   1   1   1   1   1   1   1
+
+
+   variable MissProp Rhat.M.imp Rhat.Var.imp
+1        V1      0.4  1.1458621    1.0562049
+2        V2      0.4  1.0382129    0.9475954
+3        V3      0.3  0.9880737    1.0143493
+4        V4      0.4  1.0241424    1.0733503
+5        V5      0.5  1.0212257    1.1012853
+6        V6      0.3  1.0123883    1.0673404
+7        V7      0.1  1.0148762           NA
+8        V8      0.3  0.9966290    0.9758162
+9        V9      0.2  0.9815731    1.1002370
+10      V10      0.3  0.9796196    1.1952016
+11      V11      0.2  0.9860680    1.1804593
+12      V12      0.4  1.0203122    1.0323300
+13      V13      0.5  0.9768289    0.9961635
+14      V14      0.0         NA           NA
+15      V15      0.2  1.0245148    1.1182791
+16      V16      0.4  1.0249264    1.1075395
+17      V17      0.7  1.0733743    1.0024944
+18      V18      0.3  1.0024914    1.0143213
+19      V19      0.4  1.0523571    1.0278862
+20      V20      0.2  0.9978453    0.9993249
+21      V21      0.6  1.0047598    1.0148792
+22      V22      0.3  1.0168090    1.0378505
+23      V23      0.1  0.9912053           NA
+24      V24      0.2  1.0269525    1.0745429
+25      V25      0.2  1.0737355    0.9892331
+26      V26      0.1  1.0822647           NA
+27      V27      0.2  1.1464461    0.9997766
+28      V28      0.6  1.0051693    0.9876836
+29      V29      0.1  1.0463663           NA
+30      V30      0.4  1.0760223    1.0980380
+   variable MissProp Rhat.M.imp Rhat.Var.imp
+1        V1      0.4      1.146        1.056
+2        V2      0.4      1.038        0.948
+3        V3      0.3      0.988        1.014
+4        V4      0.4      1.024        1.073
+5        V5      0.5      1.021        1.101
+6        V6      0.3      1.012        1.067
+7        V7      0.1      1.015           NA
+8        V8      0.3      0.997        0.976
+9        V9      0.2      0.982        1.100
+10      V10      0.3      0.980        1.195
+11      V11      0.2      0.986        1.180
+12      V12      0.4      1.020        1.032
+13      V13      0.5      0.977        0.996
+14      V14      0.0         NA           NA
+15      V15      0.2      1.025        1.118
+16      V16      0.4      1.025        1.108
+17      V17      0.7      1.073        1.002
+18      V18      0.3      1.002        1.014
+19      V19      0.4      1.052        1.028
+20      V20      0.2      0.998        0.999
+21      V21      0.6      1.005        1.015
+22      V22      0.3      1.017        1.038
+23      V23      0.1      0.991           NA
+24      V24      0.2      1.027        1.075
+25      V25      0.2      1.074        0.989
+26      V26      0.1      1.082           NA
+27      V27      0.2      1.146        1.000
+28      V28      0.6      1.005        0.988
+29      V29      0.1      1.046           NA
+30      V30      0.4      1.076        1.098
+To cite R in publications use:
+
+  R Core Team (2024). _R: A Language and Environment for Statistical
+  Computing_. R Foundation for Statistical Computing, Vienna, Austria.
+  <https://www.R-project.org/>.
+
+A BibTeX entry for LaTeX users is
+
+  @Manual{,
+    title = {R: A Language and Environment for Statistical Computing},
+    author = {{R Core Team}},
+    organization = {R Foundation for Statistical Computing},
+    address = {Vienna, Austria},
+    year = {2024},
+    url = {https://www.R-project.org/},
+  }
+
+We have invested a lot of time and effort in creating R, please cite it
+when using it for data analysis. See also ‘citation("pkgname")’ for
+citing R packages.
+To cite mice in publications use:
+
+  Stef van Buuren, Karin Groothuis-Oudshoorn (2011). mice: Multivariate
+  Imputation by Chained Equations in R. Journal of Statistical
+  Software, 45(3), 1-67. DOI 10.18637/jss.v045.i03.
+
+A BibTeX entry for LaTeX users is
+
+  @Article{,
+    title = {{mice}: Multivariate Imputation by Chained Equations in R},
+    author = {Stef {van Buuren} and Karin Groothuis-Oudshoorn},
+    journal = {Journal of Statistical Software},
+    year = {2011},
+    volume = {45},
+    number = {3},
+    pages = {1-67},
+    doi = {10.18637/jss.v045.i03},
+  }
+                                                      sysname 
+                                                      "Linux" 
+                                                      release 
+                                           "6.8.0-47-generic" 
+                                                      version 
+"#47-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep 27 21:40:26 UTC 2024" 
+                                                     nodename 
+                                   "freddy-spaghetti-machine" 
+                                                      machine 
+                                                     "x86_64" 
+                                                        login 
+                                           "freddy-spaghetti" 
+                                                         user 
+                                           "freddy-spaghetti" 
+                                               effective_user 
+                                           "freddy-spaghetti" 
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.1 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+
+time zone: Europe/Copenhagen
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] miceadds_3.17-44    Rfast_2.1.0         RcppParallel_5.1.9 
+ [4] RcppZiggurat_0.1.6  Rcpp_1.0.13         micd_1.1.1         
+ [7] mice_3.16.0         igraph_2.1.1        tictoc_1.2.1       
+[10] MASS_7.3-60.0.1     graph_1.80.0        BiocGenerics_0.48.1
+[13] pcalg_2.7-12       
+
+loaded via a namespace (and not attached):
+ [1] shape_1.4.6.1       ggm_2.5.1           lattice_0.22-6     
+ [4] vctrs_0.6.5         tools_4.3.3         generics_0.1.3     
+ [7] stats4_4.3.3        parallel_4.3.3      tibble_3.2.1       
+[10] fansi_1.0.6         DEoptimR_1.1-3      cluster_2.1.6      
+[13] pan_1.9             pkgconfig_2.0.3     jomo_2.7-6         
+[16] Matrix_1.6-5        lifecycle_1.0.4     compiler_4.3.3     
+[19] mitools_2.4         codetools_0.2-20    clue_0.3-65        
+[22] glmnet_4.1-8        pillar_1.9.0        nloptr_2.1.1       
+[25] tidyr_1.3.1         iterators_1.0.14    rpart_4.1.23       
+[28] boot_1.3-31         abind_1.4-8         foreach_1.5.2      
+[31] mitml_0.4-5         nlme_3.1-166        robustbase_0.99-4-1
+[34] tidyselect_1.2.1    bdsmatrix_1.3-7     dplyr_1.1.4        
+[37] purrr_1.0.2         splines_4.3.3       grid_4.3.3         
+[40] cli_3.6.3           magrittr_2.0.3      RBGL_1.78.0        
+[43] survival_3.7-0      utf8_1.2.4          broom_1.0.7        
+[46] corpcor_1.6.10      backports_1.5.0     nnet_7.3-19        
+[49] lme4_1.1-35.5       fastICA_1.2-5.1     rlang_1.1.4        
+[52] DBI_1.2.3           glue_1.8.0          BiocManager_1.30.25
+[55] minqa_1.2.8         jsonlite_1.8.9      R6_2.5.1           
+[58] sfsmisc_1.1-19     

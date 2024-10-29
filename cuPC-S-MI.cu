@@ -256,7 +256,7 @@ __global__ void cal_Indepl0(
             
             z_m[m] = rho_m;
         }
-        // compute p-value using micd logic
+        // compute MI p-value
         p_val = compute_MI_p_value(z_m, M, nrows, ord);
         if (p_val >= alpha) {
             // asign values to pMax and remove edges
@@ -351,7 +351,7 @@ __global__ void cal_Indepl1(
         if (NbrIdxPointer < SizeOfArr) {
             NbrIdx = G_Chunk[NbrIdxPointer];
 
-            // loop over other neighbors
+            // loop over neighbors
             for (int d2 = 0; d2 < SizeOfArr; d2++) {
                 if (d2 == NbrIdxPointer) {
                     continue;
@@ -379,9 +379,8 @@ __global__ void cal_Indepl1(
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-                    
+                    // compute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha) {
                         if (atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0) {
                             // update G and pMax
@@ -538,9 +537,8 @@ __global__ void cal_Indepl2(
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
+                    // compute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha) {
                         if (atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0) {
                             // update G and pMax
@@ -585,13 +583,13 @@ __global__ void cal_Indepl3(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][3];           // M1 matrix
-    double M2[3][3];           // M2 matrix
-    double M2Inv[3][3];        // Inverse of M2
-    double M1MulM2Inv[2][3];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][3];
+    double M2[3][3];
+    double M2Inv[3][3];
+    double M1MulM2Inv[2][3];
+    double H[2][2];
     double rho_m;
     double p_val;
     int ord = 3;
@@ -601,21 +599,21 @@ __global__ void cal_Indepl3(
     if (SizeOfArr <= 3){
         return;
     }
-
-    if( (SizeOfArr % ParGivenL3) == 0 ){
+    // calculate the number of chunks to process neighbors
+    if ((SizeOfArr % ParGivenL3) == 0) {
         NumberOfJump = SizeOfArr / ParGivenL3;
     }
     else{
         NumberOfJump = SizeOfArr / ParGivenL3 + 1;
     }
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( tx + cnt * ParGivenL3 ) < SizeOfArr){
             G_Chunk[ tx + cnt * ParGivenL3 ] =  GPrime[ XIdx * n + tx + cnt * ParGivenL3];
         }
         __syncthreads();
     }
-
+    // calculate the number of combinations (n choose 2)
     BINOM(SizeOfArr, 3, &NumOfComb);
     if( (NumOfComb % (ParGivenL3 * NumOfBlockForEachNodeL3)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL3 * NumOfBlockForEachNodeL3);
@@ -625,7 +623,7 @@ __global__ void cal_Indepl3(
     }
 
     __syncthreads();
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -637,7 +635,7 @@ __global__ void cal_Indepl3(
             NoEdgeFlag = 1;
             __syncthreads();
 
-            // Get idx of the combination
+            // get the indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 3, tx + bx * ParGivenL3 + d1 * ParGivenL3 * NumOfBlockForEachNodeL3 + 1);
             NbrIdx[0] = G_Chunk[NbrIdxPointer[0] - 1];
             NbrIdx[1] = G_Chunk[NbrIdxPointer[1] - 1];
@@ -652,9 +650,9 @@ __global__ void cal_Indepl3(
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-
+                        // correlation coefs
                         M0_m = C[m * n * n + XIdx * n + YIdx];
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
@@ -663,7 +661,8 @@ __global__ void cal_Indepl3(
                         M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]];
                         M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]];
                         M1[1][2] = C[m * n * n + YIdx * n + NbrIdx[2]];
-
+                        
+                        // update M2 matrix with current imputation
                         M2[0][0] = 1.0;
                         M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
                         M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
@@ -674,9 +673,10 @@ __global__ void cal_Indepl3(
                         M2[2][1] = M2[1][2];
                         M2[2][2] = 1.0;
                         
+                        // compute the pseudoinverse of M2 for current imputation
                         pseudoinversel3(M2, M2Inv);
                         
-                        // Begin to calculate I2Inv Using pseudo-inverse
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 3; c2++)
@@ -687,6 +687,7 @@ __global__ void cal_Indepl3(
                             }
                         }
 
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -707,14 +708,15 @@ __global__ void cal_Indepl3(
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-                    
+                    // compute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
-                    if (p_val >= alpha){
-                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){//lock                        
+                    if (p_val >= alpha) {
+                        if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock        
+                            // update G and pMax                
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
@@ -752,32 +754,30 @@ __global__ void cal_Indepl4(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][4];           // M1 matrix
-    double M2[4][4];           // M2 matrix
-    double M2Inv[4][4];        // Inverse of M2
-    double M1MulM2Inv[2][4];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][4];
+    double M2[4][4];
+    double M2Inv[4][4];
+    double M1MulM2Inv[2][4];
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 4;               // Order of the conditioning set
+    int ord = 4;               
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[4][4];
     double w[4], rv1[4];
     double res1[4][4];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 4){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL4) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL4;
     }
@@ -785,7 +785,7 @@ __global__ void cal_Indepl4(
         NumberOfJump = SizeOfArr / ParGivenL4 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL4 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL4 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL4];
@@ -793,7 +793,7 @@ __global__ void cal_Indepl4(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 4, &NumOfComb);
     if( (NumOfComb % (ParGivenL4 * NumOfBlockForEachNodeL4)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL4 * NumOfBlockForEachNodeL4);
@@ -803,7 +803,7 @@ __global__ void cal_Indepl4(
     }
     __syncthreads();
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -815,14 +815,14 @@ __global__ void cal_Indepl4(
             NoEdgeFlag = 1;
             __syncthreads();
 
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 4, combIdx + 1);
             NbrIdx[0] = G_Chunk[NbrIdxPointer[0] - 1];
             NbrIdx[1] = G_Chunk[NbrIdxPointer[1] - 1];
             NbrIdx[2] = G_Chunk[NbrIdxPointer[2] - 1];
             NbrIdx[3] = G_Chunk[NbrIdxPointer[3] - 1];
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
                     (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1))){
@@ -832,12 +832,11 @@ __global__ void cal_Indepl4(
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
-                        M0_m = C[m * n * n + XIdx * n + YIdx]; 
 
-                        // Compute M1 matrices
+                        // correlation coefs
+                        M0_m = C[m * n * n + XIdx * n + YIdx]; 
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
                         M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
@@ -848,7 +847,7 @@ __global__ void cal_Indepl4(
                         M1[1][2] = C[m * n * n + YIdx * n + NbrIdx[2]];
                         M1[1][3] = C[m * n * n + YIdx * n + NbrIdx[3]];
 
-                        // Compute M2 matrix
+                        // update M2 matrix with current imputation
                         M2[0][0] = 1.0;
                         M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
                         M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
@@ -869,10 +868,10 @@ __global__ void cal_Indepl4(
                         M2[3][2] = M2[2][3];
                         M2[3][3] = 1.0;
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel4(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 4; c2++)
@@ -883,7 +882,7 @@ __global__ void cal_Indepl4(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -894,30 +893,27 @@ __global__ void cal_Indepl4(
                             }
                         }
 
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0];
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1];
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2];
@@ -956,32 +952,30 @@ __global__ void cal_Indepl5(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][5];           // M1 matrix
-    double M2[5][5];           // M2 matrix
-    double M2Inv[5][5];        // Inverse of M2
-    double M1MulM2Inv[2][5];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][5];
+    double M2[5][5];
+    double M2Inv[5][5];
+    double M1MulM2Inv[2][5];
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 5;               // Order of the conditioning set
+    int ord = 5;              
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[5][5];
     double w[5], rv1[5];
     double res1[5][5];
-
-    // Initialize NoEdgeFlag
+    
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 5){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL5) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL5;
     }
@@ -989,7 +983,7 @@ __global__ void cal_Indepl5(
         NumberOfJump = SizeOfArr / ParGivenL5 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL5 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL5 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL5];
@@ -997,7 +991,7 @@ __global__ void cal_Indepl5(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 5, &NumOfComb);
     if( (NumOfComb % (ParGivenL5 * NumOfBlockForEachNodeL5)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL5 * NumOfBlockForEachNodeL5);
@@ -1006,7 +1000,7 @@ __global__ void cal_Indepl5(
         NumOfGivenJump = NumOfComb / (ParGivenL5 * NumOfBlockForEachNodeL5) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -1017,13 +1011,13 @@ __global__ void cal_Indepl5(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 5, combIdx + 1);
             for(int tmp = 0; tmp < 5; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
                     (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1)) ||
@@ -1034,12 +1028,11 @@ __global__ void cal_Indepl5(
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        
+                        // correlation coefs
                         M0_m = C[m * n * n + XIdx * n + YIdx]; 
-
-                        // Compute M1 matrices
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
                         M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
@@ -1052,7 +1045,7 @@ __global__ void cal_Indepl5(
                         M1[1][3] = C[m * n * n + YIdx * n + NbrIdx[3]];
                         M1[1][4] = C[m * n * n + YIdx * n + NbrIdx[4]];
 
-                        // Compute M2 matrix
+                        // update M2 according to current imputation
                         M2[0][0] = 1.0;
                         M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
                         M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
@@ -1083,10 +1076,10 @@ __global__ void cal_Indepl5(
                         M2[4][3] = M2[3][4];
                         M2[4][4] = 1.0;
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel5(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 5; c2++)
@@ -1097,7 +1090,7 @@ __global__ void cal_Indepl5(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -1108,30 +1101,27 @@ __global__ void cal_Indepl5(
                             }
                         }
 
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m
+                        // compute partial correlation 
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
@@ -1190,13 +1180,12 @@ __global__ void cal_Indepl6(
 
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 6){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL6) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL6;
     }
@@ -1204,7 +1193,7 @@ __global__ void cal_Indepl6(
         NumberOfJump = SizeOfArr / ParGivenL6 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL6 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL6 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL6];
@@ -1212,7 +1201,7 @@ __global__ void cal_Indepl6(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 6, &NumOfComb);
     if( (NumOfComb % (ParGivenL6 * NumOfBlockForEachNodeL6)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL6 * NumOfBlockForEachNodeL6);
@@ -1221,7 +1210,7 @@ __global__ void cal_Indepl6(
         NumOfGivenJump = NumOfComb / (ParGivenL6 * NumOfBlockForEachNodeL6) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -1233,13 +1222,13 @@ __global__ void cal_Indepl6(
             NoEdgeFlag = 1;
             __syncthreads();
 
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 6, combIdx + 1);
             for(int tmp = 0; tmp < 6; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
                     (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1)) ||
@@ -1250,12 +1239,11 @@ __global__ void cal_Indepl6(
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                       
+                        // correlation coefs
                         M0_m = C[m * n * n + XIdx * n + YIdx]; 
-
-                        // Compute M1 matrices
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
                         M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
@@ -1270,7 +1258,7 @@ __global__ void cal_Indepl6(
                         M1[1][4] = C[m * n * n + YIdx * n + NbrIdx[4]];
                         M1[1][5] = C[m * n * n + YIdx * n + NbrIdx[5]];
 
-                        // Compute M2 matrix
+                        // update M2 according to current imputation
                         M2[0][0] = 1.0;
                         M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
                         M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
@@ -1313,10 +1301,10 @@ __global__ void cal_Indepl6(
                         M2[5][4] = M2[4][5];
                         M2[5][5] = 1.0;
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel6(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 6; c2++)
@@ -1327,7 +1315,7 @@ __global__ void cal_Indepl6(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -1338,30 +1326,27 @@ __global__ void cal_Indepl6(
                             }
                         }
 
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
@@ -1403,32 +1388,30 @@ __global__ void cal_Indepl7(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][7];           // M1 matrix
-    double M2[7][7];           // M2 matrix
-    double M2Inv[7][7];        // Inverse of M2
-    double M1MulM2Inv[2][7];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][7];
+    double M2[7][7];
+    double M2Inv[7][7];
+    double M1MulM2Inv[2][7];
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 7;               // Order of the conditioning set
+    int ord = 7;               
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[7][7];
     double w[7], rv1[7];
     double res1[7][7];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 7){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL7) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL7;
     }
@@ -1436,7 +1419,7 @@ __global__ void cal_Indepl7(
         NumberOfJump = SizeOfArr / ParGivenL7 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL7 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL7 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL7];
@@ -1444,7 +1427,7 @@ __global__ void cal_Indepl7(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 7, &NumOfComb);
     if( (NumOfComb % (ParGivenL7 * NumOfBlockForEachNodeL7)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL7 * NumOfBlockForEachNodeL7);
@@ -1453,7 +1436,7 @@ __global__ void cal_Indepl7(
         NumOfGivenJump = NumOfComb / (ParGivenL7 * NumOfBlockForEachNodeL7) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -1464,13 +1447,13 @@ __global__ void cal_Indepl7(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 7, combIdx + 1);
             for(int tmp = 0; tmp < 7; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
                     (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1)) ||
@@ -1482,12 +1465,11 @@ __global__ void cal_Indepl7(
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        
+                        // correlation coefs
                         M0_m = C[m * n * n + XIdx * n + YIdx]; 
-
-                        // Compute M1 matrices
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
                         M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
@@ -1504,7 +1486,7 @@ __global__ void cal_Indepl7(
                         M1[1][5] = C[m * n * n + YIdx * n + NbrIdx[5]];
                         M1[1][6] = C[m * n * n + YIdx * n + NbrIdx[6]];
 
-                        // Compute M2 matrix
+                        // update M2 according to current 
                         M2[0][0] = 1.0;
                         M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
                         M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
@@ -1561,10 +1543,10 @@ __global__ void cal_Indepl7(
                         M2[6][5] = M2[5][6];
                         M2[6][6] = 1.0;
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel7(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 7; c2++)
@@ -1575,7 +1557,7 @@ __global__ void cal_Indepl7(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -1586,30 +1568,27 @@ __global__ void cal_Indepl7(
                             }
                         }
 
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // compute MI p-value                   
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
@@ -1651,32 +1630,30 @@ __global__ void cal_Indepl8(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][8];           // M1 matrix
-    double M2[8][8];           // M2 matrix
-    double M2Inv[8][8];        // Inverse of M2
-    double M1MulM2Inv[2][8];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][8];
+    double M2[8][8];
+    double M2Inv[8][8];
+    double M1MulM2Inv[2][8];
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 8;               // Order of the conditioning set
+    int ord = 8;               
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[8][8];
     double w[8], rv1[8];
     double res1[8][8];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 8){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL8) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL8;
     }
@@ -1684,7 +1661,7 @@ __global__ void cal_Indepl8(
         NumberOfJump = SizeOfArr / ParGivenL8 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL8 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL8 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL8];
@@ -1692,7 +1669,7 @@ __global__ void cal_Indepl8(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 8, &NumOfComb);
     if( (NumOfComb % (ParGivenL8 * NumOfBlockForEachNodeL8)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL8 * NumOfBlockForEachNodeL8);
@@ -1701,7 +1678,7 @@ __global__ void cal_Indepl8(
         NumOfGivenJump = NumOfComb / (ParGivenL8 * NumOfBlockForEachNodeL8) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -1712,13 +1689,13 @@ __global__ void cal_Indepl8(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 8, combIdx + 1);
             for(int tmp = 0; tmp < 8; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 if( (d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1)) || 
                     (d2 == (NbrIdxPointer[2] - 1)) || (d2 == (NbrIdxPointer[3] - 1)) ||
@@ -1730,12 +1707,12 @@ __global__ void cal_Indepl8(
                 if (G[XIdx * n + YIdx] == 1) {    
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx]; 
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]];
                         M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]];
                         M1[0][2] = C[m * n * n + XIdx * n + NbrIdx[2]];
@@ -1754,7 +1731,7 @@ __global__ void cal_Indepl8(
                         M1[1][6] = C[m * n * n + YIdx * n + NbrIdx[6]];
                         M1[1][7] = C[m * n * n + YIdx * n + NbrIdx[7]];
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         M2[0][0] = 1.0;
                         M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]];
                         M2[0][2] = C[m * n * n + NbrIdx[0] * n + NbrIdx[2]];
@@ -1827,10 +1804,10 @@ __global__ void cal_Indepl8(
                         M2[7][6] = M2[6][7];
                         M2[7][7] = 1.0;
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel8(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 8; c2++)
@@ -1841,7 +1818,7 @@ __global__ void cal_Indepl8(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -1851,30 +1828,27 @@ __global__ void cal_Indepl8(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }   
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0]   = 1.0  - H[0][0];
                         H[0][1]   = M0_m - H[0][1];
                         H[1][1]   = 1.0  - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));  
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML + 0] = NbrIdx[0] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 2] = NbrIdx[2] + 1;
@@ -1918,32 +1892,30 @@ __global__ void cal_Indepl9(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][9];           // M1 matrix
-    double M2[9][9];           // M2 matrix
-    double M2Inv[9][9];        // Inverse of M2
-    double M1MulM2Inv[2][9];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][9];
+    double M2[9][9];
+    double M2Inv[9][9];
+    double M1MulM2Inv[2][9];
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 9;               // Order of the conditioning set
+    int ord = 9;               
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[9][9];
     double w[9], rv1[9];
     double res1[9][9];
-
-    // Initialize NoEdgeFlag
+    
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 9){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL9) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL9;
     }
@@ -1951,7 +1923,7 @@ __global__ void cal_Indepl9(
         NumberOfJump = SizeOfArr / ParGivenL9 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL9 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL9 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL9];
@@ -1959,7 +1931,7 @@ __global__ void cal_Indepl9(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 9, &NumOfComb);
     if( (NumOfComb % (ParGivenL9 * NumOfBlockForEachNodeL9)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL9 * NumOfBlockForEachNodeL9);
@@ -1968,7 +1940,7 @@ __global__ void cal_Indepl9(
         NumOfGivenJump = NumOfComb / (ParGivenL9 * NumOfBlockForEachNodeL9) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -1979,13 +1951,13 @@ __global__ void cal_Indepl9(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 9, combIdx + 1);
             for(int tmp = 0; tmp < 9; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < 9; idx++) {
@@ -2000,18 +1972,17 @@ __global__ void cal_Indepl9(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
-                        M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // correlation coefs
+                        M0_m = C[m * n * n + XIdx * n + YIdx];
                         for (int c1 = 0; c1 < 9; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < 9; c1++){
                             for(int c2 = 0; c2 < 9; c2++){
                                 if(c1 > c2){
@@ -2026,10 +1997,10 @@ __global__ void cal_Indepl9(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel9(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 9; c2++)
@@ -2040,7 +2011,7 @@ __global__ void cal_Indepl9(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -2050,30 +2021,27 @@ __global__ void cal_Indepl9(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation 
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < 9; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -2112,32 +2080,30 @@ __global__ void cal_Indepl10(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][10];           // M1 matrix
-    double M2[10][10];          // M2 matrix
-    double M2Inv[10][10];       // Inverse of M2
-    double M1MulM2Inv[2][10];   // Product of M1 and M2Inv
+    double M1[2][10];
+    double M2[10][10];          
+    double M2Inv[10][10];       
+    double M1MulM2Inv[2][10];
     double H[2][2];             // H matrix
     double rho_m;
     double p_val;
-    int ord = 10;               // Order of the conditioning set
+    int ord = 10;               
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[10][10];
     double w[10], rv1[10];
     double res1[10][10];
-
-    // Initialize NoEdgeFlag
+    
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 10){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL10) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL10;
     }
@@ -2145,7 +2111,7 @@ __global__ void cal_Indepl10(
         NumberOfJump = SizeOfArr / ParGivenL10 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL10 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL10 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL10];
@@ -2153,7 +2119,7 @@ __global__ void cal_Indepl10(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 10, &NumOfComb);
     if( (NumOfComb % (ParGivenL10 * NumOfBlockForEachNodeL10)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL10 * NumOfBlockForEachNodeL10);
@@ -2162,7 +2128,7 @@ __global__ void cal_Indepl10(
         NumOfGivenJump = NumOfComb / (ParGivenL10 * NumOfBlockForEachNodeL10) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -2173,13 +2139,13 @@ __global__ void cal_Indepl10(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 10, combIdx + 1);
             for(int tmp = 0; tmp < 10; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < 10; idx++) {
@@ -2194,18 +2160,18 @@ __global__ void cal_Indepl10(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         for (int c1 = 0; c1 < 10; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < 10; c1++){
                             for(int c2 = 0; c2 < 10; c2++){
                                 if(c1 > c2){
@@ -2220,10 +2186,10 @@ __global__ void cal_Indepl10(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel10(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 10; c2++)
@@ -2234,7 +2200,7 @@ __global__ void cal_Indepl10(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -2244,30 +2210,27 @@ __global__ void cal_Indepl10(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < 10; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -2306,32 +2269,30 @@ __global__ void cal_Indepl11(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][11];          // M1 matrix
-    double M2[11][11];         // M2 matrix
-    double M2Inv[11][11];      // Inverse of M2
-    double M1MulM2Inv[2][11];  // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][11];          
+    double M2[11][11];         
+    double M2Inv[11][11];      
+    double M1MulM2Inv[2][11];  
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 11;              // Order of the conditioning set
+    int ord = 11;              
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[11][11];
     double w[11], rv1[11];
     double res1[11][11];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 11){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL11) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL11;
     }
@@ -2339,7 +2300,7 @@ __global__ void cal_Indepl11(
         NumberOfJump = SizeOfArr / ParGivenL11 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL11 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL11 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL11];
@@ -2347,7 +2308,7 @@ __global__ void cal_Indepl11(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 11, &NumOfComb);
     if( (NumOfComb % (ParGivenL11 * NumOfBlockForEachNodeL11)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL11 * NumOfBlockForEachNodeL11);
@@ -2356,7 +2317,7 @@ __global__ void cal_Indepl11(
         NumOfGivenJump = NumOfComb / (ParGivenL11 * NumOfBlockForEachNodeL11) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -2367,13 +2328,13 @@ __global__ void cal_Indepl11(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 11, combIdx + 1);
             for(int tmp = 0; tmp < 11; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < 11; idx++) {
@@ -2388,18 +2349,18 @@ __global__ void cal_Indepl11(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         for (int c1 = 0; c1 < 11; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < 11; c1++){
                             for(int c2 = 0; c2 < 11; c2++){
                                 if(c1 > c2){
@@ -2414,10 +2375,10 @@ __global__ void cal_Indepl11(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel11(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 11; c2++)
@@ -2428,7 +2389,7 @@ __global__ void cal_Indepl11(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -2438,30 +2399,27 @@ __global__ void cal_Indepl11(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < 11; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -2500,32 +2458,30 @@ __global__ void cal_Indepl12(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][12];          // M1 matrix
-    double M2[12][12];         // M2 matrix
-    double M2Inv[12][12];      // Inverse of M2
-    double M1MulM2Inv[2][12];  // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][12];          
+    double M2[12][12];         
+    double M2Inv[12][12];      
+    double M1MulM2Inv[2][12];  
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 12;              // Order of the conditioning set
+    int ord = 12;              
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[12][12];
     double w[12], rv1[12];
     double res1[12][12];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 12){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL12) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL12;
     }
@@ -2533,7 +2489,7 @@ __global__ void cal_Indepl12(
         NumberOfJump = SizeOfArr / ParGivenL12 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL12 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL12 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL12];
@@ -2541,7 +2497,7 @@ __global__ void cal_Indepl12(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 12, &NumOfComb);
     if( (NumOfComb % (ParGivenL12 * NumOfBlockForEachNodeL12)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL12 * NumOfBlockForEachNodeL12);
@@ -2550,7 +2506,7 @@ __global__ void cal_Indepl12(
         NumOfGivenJump = NumOfComb / (ParGivenL12 * NumOfBlockForEachNodeL12) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -2561,13 +2517,13 @@ __global__ void cal_Indepl12(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 12, combIdx + 1);
             for(int tmp = 0; tmp < 12; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < 12; idx++) {
@@ -2582,18 +2538,18 @@ __global__ void cal_Indepl12(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         for (int c1 = 0; c1 < 12; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < 12; c1++){
                             for(int c2 = 0; c2 < 12; c2++){
                                 if(c1 > c2){
@@ -2608,10 +2564,10 @@ __global__ void cal_Indepl12(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel12(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 12; c2++)
@@ -2622,7 +2578,7 @@ __global__ void cal_Indepl12(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -2632,30 +2588,27 @@ __global__ void cal_Indepl12(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < 12; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -2693,32 +2646,30 @@ __global__ void cal_Indepl13(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][13];          // M1 matrix
-    double M2[13][13];         // M2 matrix
-    double M2Inv[13][13];      // Inverse of M2
-    double M1MulM2Inv[2][13];  // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][13];          
+    double M2[13][13];         
+    double M2Inv[13][13];      
+    double M1MulM2Inv[2][13];  
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 13;              // Order of the conditioning set
+    int ord = 13;              
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[13][13];
     double w[13], rv1[13];
     double res1[13][13];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 13){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL13) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL13;
     }
@@ -2726,7 +2677,7 @@ __global__ void cal_Indepl13(
         NumberOfJump = SizeOfArr / ParGivenL13 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL13 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL13 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL13];
@@ -2734,7 +2685,7 @@ __global__ void cal_Indepl13(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 13, &NumOfComb);
     if( (NumOfComb % (ParGivenL13 * NumOfBlockForEachNodeL13)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL13 * NumOfBlockForEachNodeL13);
@@ -2743,7 +2694,7 @@ __global__ void cal_Indepl13(
         NumOfGivenJump = NumOfComb / (ParGivenL13 * NumOfBlockForEachNodeL13) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -2754,13 +2705,13 @@ __global__ void cal_Indepl13(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 13, combIdx + 1);
             for(int tmp = 0; tmp < 13; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < 13; idx++) {
@@ -2775,18 +2726,18 @@ __global__ void cal_Indepl13(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         for (int c1 = 0; c1 < 13; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < 13; c1++){
                             for(int c2 = 0; c2 < 13; c2++){
                                 if(c1 > c2){
@@ -2801,10 +2752,10 @@ __global__ void cal_Indepl13(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel13(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 13; c2++)
@@ -2815,7 +2766,7 @@ __global__ void cal_Indepl13(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -2825,30 +2776,27 @@ __global__ void cal_Indepl13(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < 13; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -2886,32 +2834,30 @@ __global__ void cal_Indepl14(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
-    double M1[2][14];          // M1 matrix
-    double M2[14][14];         // M2 matrix
-    double M2Inv[14][14];      // Inverse of M2
-    double M1MulM2Inv[2][14];  // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][14];          
+    double M2[14][14];         
+    double M2Inv[14][14];      
+    double M1MulM2Inv[2][14];  
+    double H[2][2];
     double rho_m;
     double p_val;
-    int ord = 14;              // Order of the conditioning set
+    int ord = 14;              
 
-    // Variables for SVD pseudoinverse
+    // initialize variables for SVD pseudoinverse
     double v[14][14];
     double w[14], rv1[14];
     double res1[14][14];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= 14){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenL14) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenL14;
     }
@@ -2919,7 +2865,7 @@ __global__ void cal_Indepl14(
         NumberOfJump = SizeOfArr / ParGivenL14 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenL14 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenL14 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenL14];
@@ -2927,7 +2873,7 @@ __global__ void cal_Indepl14(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, 14, &NumOfComb);
     if( (NumOfComb % (ParGivenL14 * NumOfBlockForEachNodeL14)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenL14 * NumOfBlockForEachNodeL14);
@@ -2936,7 +2882,7 @@ __global__ void cal_Indepl14(
         NumOfGivenJump = NumOfComb / (ParGivenL14 * NumOfBlockForEachNodeL14) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -2947,13 +2893,13 @@ __global__ void cal_Indepl14(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 14, combIdx + 1);
             for(int tmp = 0; tmp < 14; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < 14; idx++) {
@@ -2968,18 +2914,18 @@ __global__ void cal_Indepl14(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         for (int c1 = 0; c1 < 14; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < 14; c1++){
                             for(int c2 = 0; c2 < 14; c2++){
                                 if(c1 > c2){
@@ -2994,10 +2940,10 @@ __global__ void cal_Indepl14(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinversel14(M2, M2Inv, v, rv1, w, res1);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 14; c2++)
@@ -3008,7 +2954,7 @@ __global__ void cal_Indepl14(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -3018,30 +2964,27 @@ __global__ void cal_Indepl14(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < 14; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -3054,7 +2997,7 @@ __global__ void cal_Indepl14(
 }
 
 __global__ void cal_Indep(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
+    double *C,       // correlation matrices (flattened, size M x n x n)
     int *G,          // Adjacency matrix of the graph (size n x n)
     int *GPrime,     // Neighbor list or compressed adjacency representation
     int *mutex,      // Mutex array for atomic operations (size n x n)
@@ -3067,13 +3010,13 @@ __global__ void cal_Indep(
     int order        // The order of the conditioning set
 )
 {
-    // Check if order exceeds ML
+    // check if order exceeds ML
     if (order > ML) {
-        // Ensure only one thread prints the error message
+        // ensure only one thread prints the error message
         if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
             printf("Error: 'order' (%d) exceeds the maximum allowed value of %d.\n", order, ML);
         }
-        // Terminate the kernel early
+        // terminate the kernel early
         return;
     }
 
@@ -3088,41 +3031,39 @@ __global__ void cal_Indep(
     extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
     // initialize MI variables
-    double z_m[MAX_M];          // Z values for each imputation
+    double z_m[MAX_M];
     double M0_m;
     double rho_m;
     double p_val;
 
     // Static allocation of arrays based on 'order'
-    int NbrIdxPointer[ML];        // Indices for combinations
-    int NbrIdx[ML];                // Actual neighbor indices
+    int NbrIdxPointer[ML];        
+    int NbrIdx[ML];                
 
-    double M1[2][ML];              // 2 x ML matrix
-    double M2[ML][ML];             // ML x ML matrix
-    double M2Inv[ML][ML];          // ML x ML pseudoinverse matrix
+    double M1[2][ML];              
+    double M2[ML][ML];             
+    double M2Inv[ML][ML];          
 
-    double M1MulM2Inv[2][ML];      // 2 x ML matrix
+    double M1MulM2Inv[2][ML];      
 
-    double H[2][2];                // 2 x 2 matrix
+    double H[2][2];                
 
-    // Variables for SVD pseudoinverse
-    double v[ML][ML];              // Right singular vectors
-    double w[ML];                  // Singular values
-    double rv1[ML];                // Temporary storage
-    double res1[ML][ML];           // Intermediate matrix
+    // initialize variables for SVD pseudoinverse
+    double v[ML][ML];              
+    double w[ML];                  
+    double rv1[ML];                
+    double res1[ML][ML];           
 
-    int ord = order;               // Order of the conditioning set
+    int ord = order;               
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
-    // Get the number of neighbors for node X
-    SizeOfArr = GPrime[XIdx * n + n - 1];
+    SizeOfArr = GPrime[XIdx * n + n - 1]; // number of neighbors for node X
     if (SizeOfArr <= order){
         return;
     }
 
-    // Calculate the number of iterations needed to copy neighbor indices to shared memory
+    // calculate the number of iterations needed to copy neighbor indices to shared memory
     if( (SizeOfArr % ParGivenLAbove14) == 0 ){
         NumberOfJump = SizeOfArr / ParGivenLAbove14;
     }
@@ -3130,7 +3071,7 @@ __global__ void cal_Indep(
         NumberOfJump = SizeOfArr / ParGivenLAbove14 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++){
         if( ( threadIdx.x + cnt * ParGivenLAbove14 ) < SizeOfArr){
             G_Chunk[ threadIdx.x + cnt * ParGivenLAbove14 ] =  GPrime[ XIdx * n + threadIdx.x + cnt * ParGivenLAbove14];
@@ -3138,7 +3079,7 @@ __global__ void cal_Indep(
         __syncthreads();
     }
 
-    // Calculate the total number of combinations for the conditioning set
+    // calculate the number of combinations (n choose l)
     BINOM(SizeOfArr, order, &NumOfComb);
     if( (NumOfComb % (ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14)) == 0 ){
         NumOfGivenJump = NumOfComb / (ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14);
@@ -3147,7 +3088,7 @@ __global__ void cal_Indep(
         NumOfGivenJump = NumOfComb / (ParGivenLAbove14 * NumOfBlockForEachNodeLAbove14) + 1;
     }
 
-    // Main processing loop
+    // main loop
     for(int d1 = 0; d1 < NumOfGivenJump; d1++){
         __syncthreads();
         if(NoEdgeFlag == 1){
@@ -3158,13 +3099,13 @@ __global__ void cal_Indep(
             __syncthreads();
             NoEdgeFlag = 1;
             __syncthreads();
-            // Get indices of the combination
+            // get indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, order, combIdx + 1);
             for(int tmp = 0; tmp < order; tmp++){
                 NbrIdx[tmp] = G_Chunk[NbrIdxPointer[tmp] - 1];
             }
 
-            // Loop over other neighbors
+            // loop over neighbors
             for(int d2 = 0; d2 < SizeOfArr; d2++){
                 bool skip = false;
                 for (int idx = 0; idx < order; idx++) {
@@ -3179,18 +3120,18 @@ __global__ void cal_Indep(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Compute M0_m
+                        // compute M0_m
                         M0_m = C[m * n * n + XIdx * n + YIdx];
 
-                        // Compute M1 matrices
+                        // compute M1 matrices
                         for (int c1 = 0; c1 < order; c1++){
                             M1[0][c1] = C[m * n * n + XIdx * n + NbrIdx[c1]];
                             M1[1][c1] = C[m * n * n + YIdx * n + NbrIdx[c1]];
                         }
 
-                        // Compute M2 matrix
+                        // compute M2 matrix
                         for (int c1 = 0; c1 < order; c1++){
                             for(int c2 = 0; c2 < order; c2++){
                                 if(c1 > c2){
@@ -3205,10 +3146,10 @@ __global__ void cal_Indep(
                             }
                         }
 
-                        // Compute pseudoinverse of M2
+                        // compute pseudoinverse of M2
                         pseudoinverse(M2, M2Inv, v, rv1, w, res1, order);
 
-                        // Compute M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < order; c2++)
@@ -3219,7 +3160,7 @@ __global__ void cal_Indep(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H matrix
                         for (int c1 = 0; c1 < 2; c1++)
                         {
                             for (int c2 = 0; c2 < 2; c2++)
@@ -3229,30 +3170,27 @@ __global__ void cal_Indep(
                                     H[c1][c2] += M1MulM2Inv[c1][c3] * M1[c2][c3];
                             }
                         }
-                        // Adjust H matrix
+                        // compute H matrix
                         H[0][0] = 1.0 - H[0][0];
                         H[0][1] = M0_m - H[0][1];
                         H[1][1] = 1.0 - H[1][1];
 
-                        // Compute partial correlation rho_m using the updated formula
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Fisher Z-transformation using the updated formula
+                        // fisher's z-transformation 
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
-                    // Compute combined p-value
+                    // comptute MI p-value
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
-
                     if (p_val >= alpha){
                         if(atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0){ // lock
-                            // Remove the edge between X and Y
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
-                            // Store the maximum p-value
                             pMax[XIdx * n + YIdx] = p_val;
-                            // Store the separation set
+                            // assign sepset (+ 1 since R is one-indexed)
                             for (int idx = 0; idx < order; idx++) {
                                 Sepset[(XIdx * n + YIdx) * ML + idx] = NbrIdx[idx] + 1;
                             }
@@ -3263,9 +3201,6 @@ __global__ void cal_Indep(
         }
     }
 }
-
-
-
 
 __global__ void Scan (int* G_ScanOut, int* G_ScanIn, int Step, int GSize){
     int index = tx + blockDim.x * bx;
@@ -6961,7 +6896,7 @@ __device__ void pseudoinverse(double M2[][ML], double M2Inv[][ML], double v[][ML
     }
 
     /* Compute inverse matrix */
-    // Compute res1 = v * (1 / w)
+    // compute res1 = v * (1 / w)
     for (int rowNumber = 0; rowNumber < order; rowNumber++)
     {
         for (int colNumber = 0; colNumber < order; colNumber++)
@@ -6973,7 +6908,7 @@ __device__ void pseudoinverse(double M2[][ML], double M2Inv[][ML], double v[][ML
         }
     }
 
-    // Compute M2Inv = res1 * M2^T
+    // compute M2Inv = res1 * M2^T
     for (int rowNumber = 0; rowNumber < order; rowNumber++)
     {
         for (int colNumber = 0; colNumber < order; colNumber++)

@@ -22,9 +22,9 @@
 
 void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, int *l, int *maxlevel, double *pMax, int* SepSet)
 {
-    double *C_cuda;         //Copy of C array in GPU
+    double *C_cuda;         // copy of C array in GPU
     double *pMax_cuda;
-    int    *G_cuda;         //Copy of G Array in GPU
+    int    *G_cuda;         // copy of G Array in GPU
     int    *nprime_cuda;
     int    *SepSet_cuda;
     int    *GPrime_cuda;
@@ -48,10 +48,12 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
     HANDLE_ERROR( cudaMalloc((void**)&C_cuda,     n * n * M * sizeof(double)) );
     HANDLE_ERROR( cudaMalloc((void**)&G_cuda,     n * n * sizeof(int)) );
     HANDLE_ERROR( cudaMalloc((void**)&pMax_cuda,  n * n * sizeof(double)) );
-    //copy correlation matrix from CPU to GPU
+    
+    // copy correlation matrix from CPU to GPU
     HANDLE_ERROR( cudaMemcpy(C_cuda, C,       n * n * M * sizeof(double), cudaMemcpyHostToDevice) );
-    //initialize a 0 matrix 
+    // initialize a 0 matrix 
     HANDLE_ERROR( cudaMemset(mutex_cuda, 0, n * n * sizeof(int)) );
+    
     CudaCheckError();
     //----------------------------------------------------------
     for (*l = 0; *l <= ML && !FinishFlag && *l <= *maxlevel; *l = *l + 1){
@@ -82,7 +84,7 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
             HANDLE_ERROR( cudaMemcpy(&nprime, nprime_cuda, 1 * sizeof(int), cudaMemcpyDeviceToHost) );
 
             //================================> Begin The Gaussian CI Test  <==============================
-            // CHeck whether a CI test is possible
+            // check whether a CI test is possible
             if (nprime - 1 < *l){//if not:
                 *l = *l - 1;
                 FinishFlag = true;
@@ -92,9 +94,7 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
             if (*l == 1){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL1, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL1, 1, 1);
-                // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
                 cal_Indepl1 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda, G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
-                // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
                 HANDLE_ERROR( cudaDeviceSynchronize() ) ;
                 CudaCheckError();
@@ -102,17 +102,13 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
             else if (*l == 2){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL2, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL2, 1, 1);
-                // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
                 cal_Indepl2 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda, G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
-                // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
             }
             else if(*l == 3){
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeL3, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenL3, 1, 1);
-                // HANDLE_ERROR( cudaMalloc((void**)&SepSet_cuda,  n * n * 1 * sizeof(int)) );
                 cal_Indepl3 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
-                // HANDLE_ERROR( cudaFree(SepSet_cuda) );
                 CudaCheckError();
             }
             else if(*l == 4){
@@ -181,23 +177,24 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
                 cal_Indepl14 <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M);
                 CudaCheckError();
             } else{
-                // if l > 14, we call something that takes up more memory and is slower.
-                // this works up to l = ML
+                // if l > 14, we call something that takes up more memory, but essentially is the same. 
+                // this works up to l = ML = 32. This can be changed if the machine can handle it. 
                 BLOCKS_PER_GRID = dim3(NumOfBlockForEachNodeLAbove14, n, 1);
                 THREADS_PER_BLOCK = dim3(ParGivenLAbove14, 1, 1);
                 cal_Indep <<< BLOCKS_PER_GRID, THREADS_PER_BLOCK, nprime * sizeof(int) >>> (C_cuda,  G_cuda, GPrime_cuda, mutex_cuda, SepSet_cuda, pMax_cuda, alpha, n, nrows, M, *l);
                 CudaCheckError();
             }
         }
-    }// if l > 0
+    } // if l > 0
 
-    // Copy Graph G from GPU to CPU
+    // copy Graph G from GPU to CPU
     HANDLE_ERROR( cudaMemcpy(G, G_cuda, n * n * sizeof(int), cudaMemcpyDeviceToHost) );
-    // Copy separation set from GPU to CPU
+    // copy separation set from GPU to CPU
     HANDLE_ERROR( cudaMemcpy(SepSet, SepSet_cuda,   n * n * ML * sizeof(int), cudaMemcpyDeviceToHost) );  
-    // Copy  Pmax from GPU to CPU
+    // copy  Pmax from GPU to CPU
     HANDLE_ERROR( cudaMemcpy(pMax, pMax_cuda, n * n * sizeof(double), cudaMemcpyDeviceToHost) );
-    //Preprocess pMax
+    
+    // preprocess pMax
     double temp = 0;
     for (int i = 0; i < n; i++){
         pMax[i * n + i] = 1;
@@ -214,7 +211,7 @@ void SkeletonMI(double* C, int *P, int *Nrows, int *m, int *G, double *Alpha, in
             
         }
     }
-    // Free allocated space
+    // free allocated space
     HANDLE_ERROR( cudaFree(SepSet_cuda) );
     HANDLE_ERROR( cudaFree(C_cuda) );
     HANDLE_ERROR( cudaFree(GPrime_cuda) );
@@ -230,41 +227,43 @@ __global__ void SepSet_initialize(int *SepSet, int size){
 }
 
 __global__ void cal_Indepl0(
-    double *C,       // Correlation matrices (flattened, size n x n x M)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices  
+    int *G,          // adjacency matrix        
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values           
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations               
 )
 {
+    // initialize variables
     int row = blockDim.x * bx + tx;
     int col = blockDim.y * by + ty;
     double z_m[MAX_M];
     double p_val;
     int ord = 0;
-    if(row < col && col < n){
-        // Loop over all M imputations
-        for (int m = 0; m < M; m++) {
-            // Compute the index into the 1D C array
-            int C_index = m * n * n + row * n + col;
-            // Compute the correlation coefficient for this imputation
-            double res_m = C[C_index];
-            // Compute Fisher's Z-transformation
-            res_m = 0.5 * log((1 + res_m) / (1 - res_m));
-            
-            z_m[m] = res_m;
-        }
-        
-        p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
-        // Compute p-value using the cumulative t-distribution function
+    if(row < col && col < n){
+        // loop over all M imputations
+        for (int m = 0; m < M; m++) {
+            // compute the index into the 1D C array
+            int C_index = m * n * n + row * n + col;
+            // compute the correlation coefficient for this imputation
+            double rho_m = C[C_index];
+            // compute Fisher's Z-transformation
+            rho_m = 0.5 * log((1 + rho_m) / (1 - rho_m));
+            
+            z_m[m] = rho_m;
+        }
+        // compute p-value using micd logic
+        p_val = compute_MI_p_value(z_m, M, nrows, ord);
         if (p_val >= alpha) {
+            // asign values to pMax and remove edges
             pMax[row * n + col] = p_val;
             G[row * n + col] = 0;
             G[col * n + row] = 0;
+            // add placeholder value, so we now sepset is the empty set
             Sepset[(row * n + col) * ML] = 0; 
         } else {
             G[row * n + col] = 1;
@@ -272,6 +271,7 @@ __global__ void cal_Indepl0(
         }
     }
     if (row == col && col < n){
+        // remove self-loops
         G[row * n + col] = 0;
         G[col * n + row] = 0; 
     }
@@ -279,50 +279,50 @@ __global__ void cal_Indepl0(
 
 
 __global__ void cal_Indepl1(
-    double *C,       // Correlation matrices (flattened, size n x n x M)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix     
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+    // initialize variables
     int YIdx;
-    int XIdx = by;              // Index of variable X (current node)
+    int XIdx = by;              
     int NbrIdxPointer;
     int NbrIdx;
     int SizeOfArr;
     int NumberOfJump;
     int NumOfGivenJump;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
-    double z_m[MAX_M];          // Z values for each imputation
+    // initialize MI variables
+    double z_m[MAX_M];          
     double M0_m;
-    double M1[2];               // M1[0] and M1[1]
-    double H[2][2];             // H matrix
+    double M1[2];               
+    double H[2][2];             
     double rho_m;
     double p_val;
     int ord = 1;
 
-    // Initialize flags and neighbor sizes
-    NoEdgeFlag = 0;
-    SizeOfArr = GPrime[XIdx * n + n - 1];  // Number of neighbors for node XIdx
 
-    // Calculate the number of chunks to process neighbors
+    NoEdgeFlag = 0;
+    SizeOfArr = GPrime[XIdx * n + n - 1];  
+
+    // calculate the number of chunks to process neighbors
     if ((SizeOfArr % ParGivenL1) == 0) {
         NumberOfJump = SizeOfArr / ParGivenL1;
     } else {
         NumberOfJump = SizeOfArr / ParGivenL1 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++) {
         if ((tx + cnt * ParGivenL1) < SizeOfArr) {
             G_Chunk[tx + cnt * ParGivenL1] = GPrime[XIdx * n + tx + cnt * ParGivenL1];
@@ -330,14 +330,14 @@ __global__ void cal_Indepl1(
         __syncthreads();
     }
 
-    // Calculate the number of iterations over neighbor chunks
+    // calculate the number of iterations over neighbor chunks
     if ((SizeOfArr % (ParGivenL1 * NumOfBlockForEachNodeL1)) == 0) {
         NumOfGivenJump = SizeOfArr / (ParGivenL1 * NumOfBlockForEachNodeL1);
     } else {
         NumOfGivenJump = SizeOfArr / (ParGivenL1 * NumOfBlockForEachNodeL1) + 1;
     }
     __syncthreads();
-    // Main processing loop
+    // main loop
     for (int d1 = 0; d1 < NumOfGivenJump; d1++) {
         __syncthreads();
         if (NoEdgeFlag == 1) {
@@ -351,7 +351,7 @@ __global__ void cal_Indepl1(
         if (NbrIdxPointer < SizeOfArr) {
             NbrIdx = G_Chunk[NbrIdxPointer];
 
-            // Inner loop over other neighbors
+            // loop over other neighbors
             for (int d2 = 0; d2 < SizeOfArr; d2++) {
                 if (d2 == NbrIdxPointer) {
                     continue;
@@ -360,36 +360,36 @@ __global__ void cal_Indepl1(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
-                        // Retrieve correlation coefficients for this imputation
-                        M1[0] = C[m * n * n + XIdx * n + NbrIdx];  // C[XIdx][NbrIdx][m]
-                        M0_m  = C[m * n * n + XIdx * n + YIdx];    // C[XIdx][YIdx][m]
-                        M1[1] = C[m * n * n + YIdx * n + NbrIdx];  // C[YIdx][NbrIdx][m]
+                        // correlation coefs
+                        M1[0] = C[m * n * n + XIdx * n + NbrIdx];  
+                        M0_m  = C[m * n * n + XIdx * n + YIdx];    
+                        M1[1] = C[m * n * n + YIdx * n + NbrIdx];  
 
-                        // Compute elements of the H matrix
+                        // compute H
                         H[0][0] = 1.0  - (M1[0] * M1[0]);
                         H[0][1] = M0_m - (M1[0] * M1[1]);
                         H[1][1] = 1.0  - (M1[1] * M1[1]);
 
-                        // Compute the partial correlation rho_m
+                        // compute partial correlation
                         rho_m = H[0][1] / (sqrt(fabs(H[0][0] * H[1][1])));
 
-                        // Compute Fisher's Z-transformation
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
-
+                    
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
-                    // Compare p-value with alpha and update G accordingly
                     if (p_val >= alpha) {
                         if (atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0) {
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx + 1;
-                            // printf("XIdx=%d, YIdx=%d, NbrIdx=%d, p_val=%f\n", XIdx, YIdx, NbrIdx, p_val);
                         }
                     }
                 }
@@ -401,21 +401,21 @@ __global__ void cal_Indepl1(
 
 
 __global__ void cal_Indepl2(
-    double *C,       // Correlation matrices (flattened, size n x n x M)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices 
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+    // initialize variables
     int YIdx;
-    int XIdx = by;              // Index of variable X (current node)
+    int XIdx = by;              
     int NbrIdxPointer[2];
     int NbrIdx[2];
     int SizeOfArr;
@@ -423,36 +423,36 @@ __global__ void cal_Indepl2(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
-    double z_m[MAX_M];          // Z values for each imputation
+    // initialize MI variables
+    double z_m[MAX_M];         
     double M0_m;
-    double M1[2][2];           // M1 matrix
-    double M2[2][2];           // M2 matrix
-    double M2Inv[2][2];        // Inverse of M2
-    double M1MulM2Inv[2][2];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][2];           
+    double M2[2][2];           
+    double M2Inv[2][2];        
+    double M1MulM2Inv[2][2];   
+    double H[2][2];            
     double rho_m;
     double p_val;
     int ord = 2;
 
-    // Initialize flags and neighbor sizes
     NoEdgeFlag = 0;
-    SizeOfArr = GPrime[XIdx * n + n - 1];  // Number of neighbors for node XIdx
+    SizeOfArr = GPrime[XIdx * n + n - 1];
 
+    // if number of neighbours are smaller than potential sepset size
     if (SizeOfArr <= 2){
         return;
     }
 
-    // Calculate the number of chunks to process neighbors
+    // calculate the number of chunks to process neighbors
     if ((SizeOfArr % ParGivenL2) == 0) {
         NumberOfJump = SizeOfArr / ParGivenL2;
     } else {
         NumberOfJump = SizeOfArr / ParGivenL2 + 1;
     }
 
-    // Copy neighbor indices from global memory to shared memory
+    // copy neighbor indices from global memory to shared memory
     for (int cnt = 0; cnt < NumberOfJump; cnt++) {
         if ((tx + cnt * ParGivenL2) < SizeOfArr) {
             G_Chunk[tx + cnt * ParGivenL2] = GPrime[XIdx * n + tx + cnt * ParGivenL2];
@@ -460,10 +460,10 @@ __global__ void cal_Indepl2(
         __syncthreads();
     }
 
-    // Calculate the number of combinations (n choose 2)
+    // calculate the number of combinations (n choose 2)
     BINOM(SizeOfArr, 2, &NumOfComb);
 
-    // Calculate the number of iterations over neighbor combinations
+    // calculate the number of iterations over neighbor combinations
     if ((NumOfComb % (ParGivenL2 * NumOfBlockForEachNodeL2)) == 0) {
         NumOfGivenJump = NumOfComb / (ParGivenL2 * NumOfBlockForEachNodeL2);
     } else {
@@ -471,7 +471,7 @@ __global__ void cal_Indepl2(
     }
 
     __syncthreads();
-    // Main processing loop
+    // main loop
     for (int d1 = 0; d1 < NumOfGivenJump; d1++) {
         __syncthreads();
         if (NoEdgeFlag == 1) {
@@ -483,12 +483,12 @@ __global__ void cal_Indepl2(
             NoEdgeFlag = 1;
             __syncthreads();
 
-            // Get the indices of the combination
+            // get the indices of the combination
             IthCombination(NbrIdxPointer, SizeOfArr, 2, combIdx + 1);
             NbrIdx[0] = G_Chunk[NbrIdxPointer[0] - 1];
             NbrIdx[1] = G_Chunk[NbrIdxPointer[1] - 1];
 
-            // Inner loop over other neighbors
+            // loop over neighbors
             for (int d2 = 0; d2 < SizeOfArr; d2++) {
                 if ((d2 == (NbrIdxPointer[0] - 1)) || (d2 == (NbrIdxPointer[1] - 1))) {
                     continue;
@@ -497,26 +497,26 @@ __global__ void cal_Indepl2(
                 if (G[XIdx * n + YIdx] == 1) {
                     NoEdgeFlag = 0;
 
-                    // Loop over all M imputations
+                    // loop over all M imputations
                     for (int m = 0; m < M; m++) {
 
-                        // Retrieve correlation coefficients for this imputation
-                        M0_m = C[m * n * n + XIdx * n + YIdx]; // C[XIdx][YIdx][m]
-                        M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]]; // C[XIdx][NbrIdx[0]][m]
-                        M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]]; // C[XIdx][NbrIdx[1]][m]
-                        M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]]; // C[YIdx][NbrIdx[0]][m]
-                        M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]]; // C[YIdx][NbrIdx[1]][m]
+                        // correlation coefs
+                        M0_m = C[m * n * n + XIdx * n + YIdx]; 
+                        M1[0][0] = C[m * n * n + XIdx * n + NbrIdx[0]]; 
+                        M1[0][1] = C[m * n * n + XIdx * n + NbrIdx[1]]; 
+                        M1[1][0] = C[m * n * n + YIdx * n + NbrIdx[0]]; 
+                        M1[1][1] = C[m * n * n + YIdx * n + NbrIdx[1]]; 
 
-                        // Update M2 matrix with current imputation
+                        // update M2 matrix with current imputation
                         M2[0][0] = 1.0;
-                        M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]]; // C[NbrIdx[0]][NbrIdx[1]][m]
+                        M2[0][1] = C[m * n * n + NbrIdx[0] * n + NbrIdx[1]]; 
                         M2[1][0] = M2[0][1];
                         M2[1][1] = 1.0;
 
-                        // Compute the inverse of M2 for current imputation
+                        // compute the inverse of M2 for current imputation
                         pseudoinversel2(M2, M2Inv);
 
-                        // Compute M1MulM2Inv = M1 * M2Inv
+                        // compute M1 * M2Inv
                         for (int c1 = 0; c1 < 2; c1++) {
                             for (int c2 = 0; c2 < 2; c2++) {
                                 M1MulM2Inv[c1][c2] = 0.0;
@@ -526,30 +526,30 @@ __global__ void cal_Indepl2(
                             }
                         }
 
-                        // Compute H matrix
+                        // compute H
                         H[0][0] = 1.0 - (M1MulM2Inv[0][0] * M1[0][0] + M1MulM2Inv[0][1] * M1[0][1]);
                         H[0][1] = M0_m - (M1MulM2Inv[0][0] * M1[1][0] + M1MulM2Inv[0][1] * M1[1][1]);
                         H[1][1] = 1.0 - (M1MulM2Inv[1][0] * M1[1][0] + M1MulM2Inv[1][1] * M1[1][1]);
 
-                        // Compute the partial correlation rho_m
+                        // compute partial correlation
                         rho_m = H[0][1] / sqrt(fabs(H[0][0] * H[1][1]));
 
-                        // Compute Fisher's Z-transformation
+                        // fisher's z-transformation
                         double Z_m = 0.5 * log((1.0 + rho_m) / (1.0 - rho_m));
                         z_m[m] = Z_m;
                     }
 
                     p_val = compute_MI_p_value(z_m, M, nrows, ord);
 
-                    // Compare p-value with alpha and update G accordingly
                     if (p_val >= alpha) {
                         if (atomicCAS(&mutex[XIdx * n + YIdx], 0, 1) == 0) {
+                            // update G and pMax
                             G[XIdx * n + YIdx] = 0;
                             G[YIdx * n + XIdx] = 0;
                             pMax[XIdx * n + YIdx] = p_val;
+                            // assign sepset (+ 1 since R is one-indexed)
                             Sepset[(XIdx * n + YIdx) * ML] = NbrIdx[0] + 1;
                             Sepset[(XIdx * n + YIdx) * ML + 1] = NbrIdx[1] + 1;
-                            // printf("XIdx=%d, YIdx=%d, NbrIdx=(%d, %d), p_val=%f\n", XIdx, YIdx, NbrIdx[0], NbrIdx[1], p_val);
                         }
                     }
                 }
@@ -560,21 +560,21 @@ __global__ void cal_Indepl2(
 
 
 __global__ void cal_Indepl3(
-    double *C,       // Correlation matrices (flattened, size n x n x M)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = by;              // Index of variable X (current node)
+    int XIdx = by;              
     int NbrIdxPointer[3];
     int NbrIdx[3];
     int SizeOfArr;
@@ -582,9 +582,9 @@ __global__ void cal_Indepl3(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][3];           // M1 matrix
@@ -727,21 +727,21 @@ __global__ void cal_Indepl3(
 }
 
 __global__ void cal_Indepl4(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[4];
     int NbrIdx[4];
     int SizeOfArr;
@@ -749,9 +749,9 @@ __global__ void cal_Indepl4(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][4];           // M1 matrix
@@ -932,21 +932,20 @@ __global__ void cal_Indepl4(
 
 
 __global__ void cal_Indepl5(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[5];
     int NbrIdx[5];
     int SizeOfArr;
@@ -954,9 +953,9 @@ __global__ void cal_Indepl5(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][5];           // M1 matrix
@@ -1148,21 +1147,21 @@ __global__ void cal_Indepl5(
 
 
 __global__ void cal_Indepl6(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+    // initialize variables
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[6];
     int NbrIdx[6];
     int SizeOfArr;
@@ -1170,26 +1169,25 @@ __global__ void cal_Indepl6(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
-    double z_m[MAX_M];          // Z values for each imputation
+    // initialize MI variables
+    double z_m[MAX_M];          
     double M0_m;
-    double M1[2][6];           // M1 matrix
-    double M2[6][6];           // M2 matrix
-    double M2Inv[6][6];        // Inverse of M2
-    double M1MulM2Inv[2][6];   // Product of M1 and M2Inv
-    double H[2][2];            // H matrix
+    double M1[2][6];           
+    double M2[6][6];           
+    double M2Inv[6][6];        
+    double M1MulM2Inv[2][6];   
+    double H[2][2];            
     double rho_m;
     double p_val;
-    int ord = 6;               // Order of the conditioning set
+    int ord = 6;               
 
-    // Variables for SVD pseudoinverse
+    // initialize pseudoinverse variables
     double v[6][6];
     double w[6], rv1[6];
     double res1[6][6];
 
-    // Initialize NoEdgeFlag
     NoEdgeFlag = 0;
 
     // Get the number of neighbors for node X
@@ -1380,21 +1378,21 @@ __global__ void cal_Indepl6(
 
 
 __global__ void cal_Indepl7(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+    // initialize variables
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[7];
     int NbrIdx[7];
     int SizeOfArr;
@@ -1402,9 +1400,9 @@ __global__ void cal_Indepl7(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][7];           // M1 matrix
@@ -1628,21 +1626,21 @@ __global__ void cal_Indepl7(
 }
 
 __global__ void cal_Indepl8(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[8];
     int NbrIdx[8];
     int SizeOfArr;
@@ -1650,9 +1648,9 @@ __global__ void cal_Indepl8(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][8];           // M1 matrix
@@ -1895,21 +1893,21 @@ __global__ void cal_Indepl8(
 
 
 __global__ void cal_Indepl9(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[9];
     int NbrIdx[9];
     int SizeOfArr;
@@ -1917,9 +1915,9 @@ __global__ void cal_Indepl9(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][9];           // M1 matrix
@@ -2089,21 +2087,21 @@ __global__ void cal_Indepl9(
 
 
 __global__ void cal_Indepl10(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[10];
     int NbrIdx[10];
     int SizeOfArr;
@@ -2111,9 +2109,9 @@ __global__ void cal_Indepl10(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][10];           // M1 matrix
@@ -2283,21 +2281,21 @@ __global__ void cal_Indepl10(
 
 
 __global__ void cal_Indepl11(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[11];
     int NbrIdx[11];
     int SizeOfArr;
@@ -2305,9 +2303,9 @@ __global__ void cal_Indepl11(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][11];          // M1 matrix
@@ -2477,21 +2475,21 @@ __global__ void cal_Indepl11(
 
 
 __global__ void cal_Indepl12(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[12];
     int NbrIdx[12];
     int SizeOfArr;
@@ -2499,9 +2497,9 @@ __global__ void cal_Indepl12(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][12];          // M1 matrix
@@ -2670,21 +2668,21 @@ __global__ void cal_Indepl12(
 }
 
 __global__ void cal_Indepl13(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[13];
     int NbrIdx[13];
     int SizeOfArr;
@@ -2692,9 +2690,9 @@ __global__ void cal_Indepl13(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][13];          // M1 matrix
@@ -2863,21 +2861,21 @@ __global__ void cal_Indepl13(
 }
 
 __global__ void cal_Indepl14(
-    double *C,       // Correlation matrices (flattened, size M x n x n)
-    int *G,          // Adjacency matrix of the graph (size n x n)
-    int *GPrime,     // Neighbor list or compressed adjacency representation
-    int *mutex,      // Mutex array for atomic operations (size n x n)
-    int *Sepset,     // Separation set matrix (size n x n x ML)
-    double *pMax,    // Maximum p-values (size n x n)
-    double alpha,    // Significance level for the statistical test
-    int n,           // Number of variables (nodes)
-    int nrows,       // Number of samples (observations)
-    int M            // Number of imputations (imputed datasets)
+    double *C,       // correlation matrices   
+    int *G,          // adjacency matrix      
+    int *GPrime,     // number of neighbors for nodes
+    int *mutex,      // mutex array for atomic operations 
+    int *Sepset,     // separation set matrix 
+    double *pMax,    // maximum p-values    
+    double alpha,    // significance level                  
+    int n,           // number of columns/nodes/variables   
+    int nrows,       // number of rows/samples/observations 
+    int M            // number of imputations   
 )
 {
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int NbrIdxPointer[14];
     int NbrIdx[14];
     int SizeOfArr;
@@ -2885,9 +2883,9 @@ __global__ void cal_Indepl14(
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double M1[2][14];          // M1 matrix
@@ -3079,17 +3077,17 @@ __global__ void cal_Indep(
         return;
     }
 
-    // Variable declarations
+
     int YIdx;
-    int XIdx = blockIdx.y;      // Index of variable X (current node)
+    int XIdx = blockIdx.y;      
     int SizeOfArr;
     int NumberOfJump;
     int NumOfGivenJump;
     int NumOfComb;
     __shared__ int NoEdgeFlag;
-    extern __shared__ int G_Chunk[];  // Shared memory for neighbor indices
+    extern __shared__ int G_Chunk[];  // shared memory for neighbor indices
 
-    // Variables for multiple imputations
+    // initialize MI variables
     double z_m[MAX_M];          // Z values for each imputation
     double M0_m;
     double rho_m;

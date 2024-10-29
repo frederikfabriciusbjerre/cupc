@@ -18,7 +18,7 @@
 #define tz  threadIdx.z
 #define SIGN(a, b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 #define MAX(x,y) ((x)>(y)?(x):(y))
-//Note that EdgePerBlockLX * ParTestPerEdgeL1 < 1024
+// Note that EdgePerBlockLX * ParTestPerEdgeL1 < 1024
 
 #define ParGivenL1 64
 #define NumOfBlockForEachNodeL1 2

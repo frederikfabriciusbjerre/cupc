@@ -41,5 +41,5 @@ data_missing <- ampute(data, prop = prob_miss,
 imputed_data <- mice(data_missing, m = m, method = method, printFlag = FALSE, remove.collinear = TRUE)
 
 # write mids obj
-write.mice.imputation(imputed_data, "dataset_imputed")
+write.mice.imputation(imputed_data, "dataset_imputed", dattype = "csv", mids2spss = FALSE)
 #write.table(imputed_data,file="data/dataset_imputed.csv", row.names=FALSE, na= "",col.names= FALSE, sep=",")

@@ -9,25 +9,27 @@ library(micd)
 
 source("cuPCMI.R")
 
-# read data
-dataset_path <- file.path("data/dataset.csv", fsep = .Platform$file.sep)
-data <- read.table(dataset_path, sep = ",")
+# read data as imputed_data
+dataset_path <- file.path("dataset_imputed/dataset_imputed.Rdata", fsep = .Platform$file.sep)
+load.Rdata(dataset_path, "imputed_data")
 
-prob_miss <- 0.1
-alpha <- 0.95
-max_order <- 15
-
-# missing at random data 
-data_missing <- ampute(data, prop = prob_miss, 
-                        mech = "MAR", 
-                        bycases = TRUE)$amp
-
-# naive mice imputation
-tic()
-imputed_data <- mice(data_missing, m = 10, method = "norm", printFlag = FALSE, remove.collinear = TRUE)
-toc()
-
+# make suffStat
 suffStatMI <- getSuffCU(imputed_data) 
+
+# input params to pc
+p <- imputed_data[[1]] %>% length()
+alpha <- 0.99
+max_order <- 10
+
+tic()
+cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
+print("The total time consumed by cuPCMI is:")
+toc()
+cat("\n")
+cat("cuPCMI\n")
+print(cuPCMI_fit)
+cat("\n")
+cat("cuPC ord:", cuPCMI_fit@max.ord, "\n")
 
 # suffStatMICD <- micd::getSuff(imputed_data, test="gaussMItest")
 # tic()
@@ -38,15 +40,3 @@ suffStatMI <- getSuffCU(imputed_data)
 # cat("micd_PC\n")
 # print(micd_PC)
 # cat("\n")
-
-tic()
-cuPCMI_fit <- cu_pc_MI(suffStatMI, p = p, alpha = alpha, m.max = max_order)
-print("The total time consumed by cuPCMI is:")
-toc()
-cat("\n")
-cat("cuPCMI\n")
-print(cuPCMI_fit)
-cat("\n")
-
-# cat("micdPC ord:", micd_PC@max.ord, "\n")
-cat("cuPC ord:", cuPCMI_fit@max.ord, "\n")
